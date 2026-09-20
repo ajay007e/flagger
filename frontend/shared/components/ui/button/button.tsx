@@ -4,23 +4,7 @@ import React from "react";
 import { cn } from "@/shared/lib/utils";
 
 import { buttonVariants } from "./button.styles";
-
-export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?:
-    | "primary"
-    | "secondary"
-    | "outline"
-    | "ghost"
-    | "danger"
-    | "success"
-    | "link"
-    | "danger-outline";
-  size?: "xs" | "sm" | "md" | "lg" | "icon";
-  loading?: boolean;
-  leftIcon?: React.ReactNode;
-  rightIcon?: React.ReactNode;
-  fullWidth?: boolean;
-}
+import type { ButtonProps } from "./types";
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   (

@@ -12,22 +12,11 @@ import {
 
 import {
   DEFAULT_THEME_SETTING,
+  SYSTEM_THEME,
   THEME_STORAGE_KEY,
-  isThemeSetting,
-  resolveTheme,
-  type ThemeId,
-  type ThemeSetting,
-} from "./themes";
-
-type ThemeContextValue = {
-  /** The user's choice, including "system". */
-  theme: ThemeSetting;
-  /** The theme actually applied to the page. */
-  resolvedTheme: ThemeId;
-  setTheme: (theme: ThemeSetting) => void;
-  /** False until the stored preference has been read on the client. */
-  mounted: boolean;
-};
+} from "./constants";
+import type { ThemeContextValue, ThemeId, ThemeSetting } from "./types";
+import { isThemeSetting, resolveTheme } from "./utils";
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
@@ -71,7 +60,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
     apply();
 
-    if (theme !== "system") {
+    if (theme !== SYSTEM_THEME) {
       return undefined;
     }
 

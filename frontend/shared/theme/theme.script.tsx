@@ -1,4 +1,4 @@
-import { THEME_STORAGE_KEY, THEMES } from "./themes";
+import { THEME_STORAGE_KEY, THEMES } from "./constants";
 
 /**
  * Runs before first paint to set data-theme on <html>, which avoids a flash

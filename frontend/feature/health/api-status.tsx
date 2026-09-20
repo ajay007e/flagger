@@ -1,10 +1,6 @@
-import { api } from "@/shared";
+import { api } from "@/shared/lib";
 
-type HealthResponse = {
-  status: string;
-  uptime: number;
-  timestamp: string;
-};
+import type { HealthResponse } from "./types";
 
 export async function ApiStatus() {
   try {
