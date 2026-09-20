@@ -4,8 +4,11 @@ export const healthRouter = Router();
 
 healthRouter.get("/", (_req, res) => {
   res.json({
-    status: "ok",
-    uptime: process.uptime(),
-    timestamp: new Date().toISOString(),
+    success: true,
+    data: {
+      status: "ok",
+      uptime: process.uptime(),
+      timestamp: new Date().toISOString(),
+    },
   });
 });
