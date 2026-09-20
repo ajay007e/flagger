@@ -1,4 +1,4 @@
-import { apiFetch } from "@/shared/lib/api";
+import { api } from "@/shared/lib/api";
 
 type HealthResponse = {
   status: string;
@@ -8,15 +8,15 @@ type HealthResponse = {
 
 export async function ApiStatus() {
   try {
-    const data = await apiFetch<HealthResponse>("/api/health");
+    const { data } = await api.get<HealthResponse>("/api/health");
 
     return (
       <p>
         API status:{" "}
-        <span className="font-medium text-green-600">{data.status}</span>
+        <span className="font-medium text-success">{data.status}</span>
       </p>
     );
   } catch {
-    return <p className="font-medium text-red-600">API is unreachable</p>;
+    return <p className="font-medium text-danger">API is unreachable</p>;
   }
 }

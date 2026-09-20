@@ -1,17 +1,9 @@
+import axios from "axios";
+
 import { env } from "@/shared/config/env";
 
-export async function apiFetch<T>(
-  path: string,
-  init?: RequestInit,
-): Promise<T> {
-  const response = await fetch(`${env.apiUrl}${path}`, {
-    cache: "no-store",
-    ...init,
-  });
-
-  if (!response.ok) {
-    throw new Error(`Request failed with status ${response.status}`);
-  }
-
-  return (await response.json()) as T;
-}
+export const api = axios.create({
+  baseURL: env.apiUrl,
+  headers: { "Content-Type": "application/json" },
+  timeout: 10_000,
+});

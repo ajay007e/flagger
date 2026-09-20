@@ -1,6 +1,9 @@
 import { ApiStatus } from "@/feature/health/api-status";
 import { ThemeSwitcher } from "@/shared/theme/theme.switcher";
 
+// Render on every request so the API status is always live
+export const dynamic = "force-dynamic";
+
 export default function HomePage() {
   return (
     <div className="flex min-h-screen flex-col">
