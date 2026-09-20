@@ -10,9 +10,13 @@ app.use(express.json());
 
 app.get("/", (_req, res) => {
   res.json({
-    name: "Flagger API",
-    status: "ok",
-    uptime: process.uptime(),
+    success: true,
+    data: {
+      name: "Flagger API",
+      status: "ok",
+      uptime: process.uptime(),
+      timestamp: new Date().toISOString(),
+    },
   });
 });
 

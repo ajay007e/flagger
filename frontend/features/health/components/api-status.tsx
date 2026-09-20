@@ -2,9 +2,9 @@
 
 import { cn } from "@/shared/lib/utils";
 
-import { HEALTH_STATUS } from "./constants";
-import { useHealth } from "./health.hook";
-import type { HealthState } from "./types";
+import { HEALTH_STATUS } from "../constants";
+import { useHealth } from "../health.hook";
+import type { HealthState } from "../types";
 
 export function ApiStatus() {
   const { loading, error } = useHealth();
