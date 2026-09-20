@@ -1,5 +1,5 @@
-import { ApiStatus } from "@/feature/health/api-status";
-import { ThemeSwitcher } from "@/shared/theme/theme.switcher";
+import { ApiStatus } from "@/feature/health";
+import { ThemeSwitcher } from "@/shared/theme";
 
 // Render on every request so the API status is always live
 export const dynamic = "force-dynamic";

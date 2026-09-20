@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
-import { ThemeProvider } from "@/shared/theme/theme.provider";
-import { ThemeScript } from "@/shared/theme/theme.script";
+import { ThemeProvider, ThemeScript } from "@/shared/theme";
 
 import "./globals.css";
 

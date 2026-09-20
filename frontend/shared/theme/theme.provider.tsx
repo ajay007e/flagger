@@ -17,7 +17,7 @@ import {
   resolveTheme,
   type ThemeId,
   type ThemeSetting,
-} from "@/shared/theme/themes";
+} from "./themes";
 
 type ThemeContextValue = {
   /** The user's choice, including "system". */
