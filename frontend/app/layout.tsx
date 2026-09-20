@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
 import { ApiStatus } from "@/features/health";
-import { Navbar } from "@/shared/components";
+import { Footer, Navbar } from "@/shared/components";
 import { APP_NAME } from "@/shared/config";
 import { ThemeProvider, ThemeScript } from "@/shared/theme";
 
@@ -25,6 +25,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             <ApiStatus />
           </Navbar>
           {children}
+          <Footer />
         </ThemeProvider>
       </body>
     </html>
