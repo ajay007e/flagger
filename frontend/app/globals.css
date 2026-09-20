@@ -1,1 +1,20 @@
 @import "tailwindcss";
+@import "../shared/theme/themes.css";
+
+/* `dark:` follows the data-theme attribute instead of the OS setting */
+@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
+
+/* Expose theme variables as Tailwind colors: bg-background, text-muted, ... */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-danger: var(--danger);
+  --color-danger-foreground: var(--danger-foreground);
+}

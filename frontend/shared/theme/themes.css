@@ -1,0 +1,38 @@
+/*
+ * Theme tokens. Each theme only defines values for the same set of variables.
+ * To add a custom theme, copy a block below, change the data-theme value and
+ * the colors, then register it in shared/theme/themes.ts.
+ */
+
+:root,
+[data-theme="light"] {
+  color-scheme: light;
+
+  --background: #ffffff;
+  --foreground: #0f172a;
+  --surface: #f8fafc;
+  --muted: #64748b;
+  --border: #e2e8f0;
+  --primary: #4f46e5;
+  --primary-foreground: #ffffff;
+  --success: #16a34a;
+  --success-foreground: #ffffff;
+  --danger: #dc2626;
+  --danger-foreground: #ffffff;
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --background: #0b1120;
+  --foreground: #e2e8f0;
+  --surface: #111827;
+  --muted: #94a3b8;
+  --border: #1f2937;
+  --primary: #818cf8;
+  --primary-foreground: #0b1120;
+  --success: #4ade80;
+  --success-foreground: #0b1120;
+  --danger: #f87171;
+  --danger-foreground: #0b1120;
+}
