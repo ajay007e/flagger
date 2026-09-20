@@ -1,17 +1,11 @@
-import { env } from "@/shared/config/env";
+import axios from "axios";
 
-export async function apiFetch<T>(
-  path: string,
-  init?: RequestInit,
-): Promise<T> {
-  const response = await fetch(`${env.apiUrl}${path}`, {
-    cache: "no-store",
-    ...init,
-  });
+import { env } from "@/shared/config";
 
-  if (!response.ok) {
-    throw new Error(`Request failed with status ${response.status}`);
-  }
+import { API_TIMEOUT_MS } from "./constants";
 
-  return (await response.json()) as T;
-}
+export const api = axios.create({
+  baseURL: env.apiUrl,
+  headers: { "Content-Type": "application/json" },
+  timeout: API_TIMEOUT_MS,
+});
