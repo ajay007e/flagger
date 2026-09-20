@@ -1,0 +1,21 @@
+{
+  "name": "flagger",
+  "version": "0.0.1",
+  "private": true,
+  "description": "A lightweight feature flag service with a web UI, backend API, and documentation.",
+  "scripts": {
+    "dev": "pnpm -r --parallel dev",
+    "dev:frontend": "pnpm --filter flagger-frontend dev",
+    "dev:backend": "pnpm --filter flagger-backend dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "pnpm -r lint",
+    "lint:fix": "pnpm -r lint:fix",
+    "format": "pnpm -r format",
+    "format:check": "pnpm -r format:check"
+  },
+  "engines": {
+    "node": ">=18.18.0",
+    "pnpm": ">=8"
+  }
+}
