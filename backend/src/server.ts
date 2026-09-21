@@ -1,13 +1,10 @@
-import "dotenv/config";
-
 import { app } from "@/app";
-
-const port = Number(process.env.PORT) || 4000;
+import { env } from "@/config";
 
 function start(): void {
   try {
-    app.listen(port, () => {
-      console.log(`Server running on port ${port}`);
+    app.listen(env.port, () => {
+      console.log(`Server running on port ${env.port}`);
     });
   } catch (error) {
     console.error("Failed to start application");
