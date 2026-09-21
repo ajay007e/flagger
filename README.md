@@ -98,6 +98,32 @@ MySQL also gets a `flagger_shadow` database on first start, which Prisma uses fo
 
 Copy `.env.example` to `.env` in the repo root, edit the values, and restart the services. Then update `DATABASE_URL`, `SHADOW_DATABASE_URL`, and `REDIS_URL` in `backend/.env` to match.
 
+## Database and Migrations
+
+The backend uses [Prisma ORM](https://www.prisma.io/) (pinned to v7, the line that supports MySQL) with MySQL. Run these from `backend/` while the services are running (`pnpm services:up`):
+
+```bash
+pnpm db:generate                       # generate the Prisma Client (also runs on pnpm install)
+pnpm db:deploy                         # apply all committed migrations (use on a fresh database)
+pnpm db:migrate --name add_something   # create and apply a new migration after editing the schema
+pnpm db:seed                           # run the seed script (safe to run repeatedly)
+```
+
+### Changing the schema
+
+1. Edit `backend/prisma/schema.prisma`.
+2. Run `pnpm db:migrate --name <short_description>` and review the generated SQL in `backend/prisma/migrations/`.
+3. Run `pnpm db:generate` to refresh the client types.
+4. Commit the schema change and the new migration folder together.
+
+### Notes
+
+- The generated client lives in `backend/src/generated/prisma` and is not committed.
+- Prisma 7 does not run `generate` or the seed script after `migrate dev`, so run them yourself.
+- `migrate dev` uses the shadow database from `SHADOW_DATABASE_URL`, which the compose init script creates.
+- Never edit a migration that has been applied or merged. Add a new one instead.
+- After the first `pnpm install`, run `pnpm approve-builds` and allow the Prisma packages, then commit the change it makes.
+
 ## Documentation
 
 Guides and API references live in the [`docs/`](./docs) folder.

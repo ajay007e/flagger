@@ -1,0 +1,27 @@
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "cjs"
+  importFileExtension = ""
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+// Every table follows the same base convention:
+//   id/key, ..., updated_by, created_at, updated_at, deleted_at (soft delete)
+
+// Key/value store for system information and, later, system preferences.
+// Example: key "name" -> "Flagger". Values are validated in code, not in the database.
+model SystemSetting {
+  key       String    @id @map("setting_key") @db.VarChar(100)
+  value     Json
+  // Plain column for now. The foreign key to users is added together with the users table.
+  updatedBy Int?      @map("updated_by") @db.UnsignedInt
+  createdAt DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt DateTime  @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  deletedAt DateTime? @map("deleted_at") @db.DateTime(3)
+
+  @@map("system_settings")
+}
