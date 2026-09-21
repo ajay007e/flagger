@@ -37,6 +37,7 @@ flagger/
 - [Node.js](https://nodejs.org/) v18 or later
 - [pnpm](https://pnpm.io/) v8 or later (`npm install -g pnpm` or `corepack enable`)
 - [Git](https://git-scm.com/)
+- [Docker](https://www.docker.com/) with Docker Compose (for local MySQL and Redis)
 
 ## Getting Started
 
@@ -70,6 +71,32 @@ pnpm dev
 ```
 
 The dashboard will run on `http://localhost:3000`.
+
+## Local Services (MySQL and Redis)
+
+The backend uses MySQL and Redis. Start both with Docker Compose from the repo root:
+
+```bash
+docker compose up -d     # start in the background
+docker compose ps        # check status (both should be "healthy")
+docker compose down      # stop, data is kept
+docker compose down -v   # stop and delete all data
+```
+
+Shortcuts: `pnpm services:up`, `pnpm services:down`, `pnpm services:logs`, `pnpm services:reset`.
+
+| Service | Address          | Details                                                |
+| ------- | ---------------- | ------------------------------------------------------ |
+| MySQL   | `localhost:3306` | database `flagger`, user `flagger`, password `flagger` |
+| Redis   | `localhost:6379` | append-only persistence enabled                        |
+
+Both ports are bound to `127.0.0.1` only. These credentials are for local development only.
+
+MySQL also gets a `flagger_shadow` database on first start, which Prisma uses for migrations. Init scripts only run when the data volume is first created, so use `docker compose down -v` to re-run them.
+
+### Changing ports or credentials
+
+Copy `.env.example` to `.env` in the repo root, edit the values, and restart the services. Then update `DATABASE_URL`, `SHADOW_DATABASE_URL`, and `REDIS_URL` in `backend/.env` to match.
 
 ## Documentation
 

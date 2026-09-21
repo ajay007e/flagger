@@ -12,7 +12,11 @@
     "lint": "pnpm -r lint",
     "lint:fix": "pnpm -r lint:fix",
     "format": "pnpm -r format",
-    "format:check": "pnpm -r format:check"
+    "format:check": "pnpm -r format:check",
+    "services:up": "docker compose up -d",
+    "services:down": "docker compose down",
+    "services:logs": "docker compose logs -f",
+    "services:reset": "docker compose down -v && docker compose up -d"
   },
   "engines": {
     "node": ">=18.18.0",

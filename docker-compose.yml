@@ -1,0 +1,49 @@
+name: flagger
+
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: flagger-mysql
+    restart: unless-stopped
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-time-zone=+00:00
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-flagger}
+      MYSQL_USER: ${MYSQL_USER:-flagger}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-flagger}
+    ports:
+      - "127.0.0.1:${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./scripts/mysql:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      # 127.0.0.1 (TCP) on purpose: during first-time init MySQL only listens on
+      # a socket, so this stays unhealthy until the real server is up.
+      test: ["CMD-SHELL", 'mysqladmin ping -h 127.0.0.1 -u root -p"$$MYSQL_ROOT_PASSWORD" --silent']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  redis:
+    image: redis:7-alpine
+    container_name: flagger-redis
+    restart: unless-stopped
+    # Append-only persistence so sessions survive a restart
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  mysql_data:
+  redis_data:
