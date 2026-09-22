@@ -1,136 +1,79 @@
 # Flagger
 
-A lightweight feature flag service with a web UI, backend API, and documentation.
+A lightweight feature flag service with a web UI, a backend API, and documentation.
 
-Flagger lets you turn features on or off, roll them out gradually, and manage everything from a simple dashboard, without redeploying your apps.
+> **Status:** early development, so expect changes. Progress is tracked in the GitHub milestones (Epic 0 to Epic 6).
 
-> **Status:** Early development. Things will change.
+## What it will do
 
-## Features (planned)
+- Manage feature flags per project, entity, and environment
+- Two interfaces: an admin UI (users, access, configuration) and the Flagger UI (flags)
+- Fine-grained access control, so people only see and change what they are allowed to
+- An audit log of every action in the service
+- An approval workflow for flag changes (later)
+- A REST API for applications to read flags (later)
 
-- Create, update, and delete feature flags
-- Enable or disable flags per environment (e.g. dev, staging, production)
-- Percentage-based rollouts
-- REST API for evaluating flags from any application
-- Web dashboard for managing flags
-- API key authentication
+## Tech stack
 
-## Tech Stack
+| Part     | Technologies                                      |
+| -------- | ------------------------------------------------- |
+| Frontend | Next.js, TypeScript, Tailwind CSS                 |
+| Backend  | Node.js, Express, TypeScript, Prisma              |
+| Data     | MySQL, Redis                                      |
+| Tooling  | pnpm workspaces, Docker Compose, ESLint, Prettier |
 
-| Part     | Technologies                      |
-| -------- | --------------------------------- |
-| Frontend | Next.js, TypeScript, Tailwind CSS |
-| Backend  | Node.js, Express, TypeScript      |
-
-## Project Structure
+## Project structure
 
 ```
 flagger/
-├── frontend/   # Next.js dashboard
-├── backend/    # Express API
-├── docs/       # Project documentation
-└── README.md
+├── frontend/             # Next.js app          (see frontend/README.md)
+├── backend/              # Express API          (see backend/README.md)
+├── docs/                 # Project documentation
+├── scripts/              # Helper scripts (MySQL init, GitHub issue creation)
+├── docker-compose.yml    # Local MySQL and Redis
+├── pnpm-workspace.yaml
+└── package.json          # Root scripts
 ```
 
-## Requirements
+## Quick start
 
-- [Node.js](https://nodejs.org/) v18 or later
-- [pnpm](https://pnpm.io/) v8 or later (`npm install -g pnpm` or `corepack enable`)
-- [Git](https://git-scm.com/)
-- [Docker](https://www.docker.com/) with Docker Compose (for local MySQL and Redis)
-
-## Getting Started
-
-### 1. Clone the repository
+You need Node.js 20.19+, pnpm 10+, Docker, and Git. Full steps are in [docs/installation.md](./docs/installation.md).
 
 ```bash
 git clone https://github.com/ajay007e/flagger.git
 cd flagger
-```
 
-### 2. Set up the backend
-
-```bash
-cd backend
 pnpm install
-cp .env.example .env   # then edit values as needed
-pnpm dev
+pnpm approve-builds                       # first time only
+pnpm services:up                          # MySQL and Redis
+
+cp backend/.env.example backend/.env      # then set SESSION_SECRET and SETUP_API_KEY
+cd backend && pnpm db:deploy && cd ..     # create the tables
+
+pnpm dev                                  # frontend and backend together
 ```
 
-The API will run on `http://localhost:4000` by default.
-
-### 3. Set up the frontend
-
-In a new terminal:
-
-```bash
-cd frontend
-pnpm install
-cp .env.example .env.local   # then edit values as needed
-pnpm dev
-```
-
-The dashboard will run on `http://localhost:3000`.
-
-## Local Services (MySQL and Redis)
-
-The backend uses MySQL and Redis. Start both with Docker Compose from the repo root:
-
-```bash
-docker compose up -d     # start in the background
-docker compose ps        # check status (both should be "healthy")
-docker compose down      # stop, data is kept
-docker compose down -v   # stop and delete all data
-```
-
-Shortcuts: `pnpm services:up`, `pnpm services:down`, `pnpm services:logs`, `pnpm services:reset`.
-
-| Service | Address          | Details                                                |
-| ------- | ---------------- | ------------------------------------------------------ |
-| MySQL   | `localhost:3306` | database `flagger`, user `flagger`, password `flagger` |
-| Redis   | `localhost:6379` | append-only persistence enabled                        |
-
-Both ports are bound to `127.0.0.1` only. These credentials are for local development only.
-
-MySQL also gets a `flagger_shadow` database on first start, which Prisma uses for migrations. Init scripts only run when the data volume is first created, so use `docker compose down -v` to re-run them.
-
-### Changing ports or credentials
-
-Copy `.env.example` to `.env` in the repo root, edit the values, and restart the services. Then update `DATABASE_URL`, `SHADOW_DATABASE_URL`, and `REDIS_URL` in `backend/.env` to match.
-
-## Database and Migrations
-
-The backend uses [Prisma ORM](https://www.prisma.io/) (pinned to v7, the line that supports MySQL) with MySQL. Run these from `backend/` while the services are running (`pnpm services:up`):
-
-```bash
-pnpm db:generate                       # generate the Prisma Client (also runs on pnpm install)
-pnpm db:deploy                         # apply all committed migrations (use on a fresh database)
-pnpm db:migrate --name add_something   # create and apply a new migration after editing the schema
-pnpm db:seed                           # run the seed script (safe to run repeatedly)
-```
-
-### Changing the schema
-
-1. Edit `backend/prisma/schema.prisma`.
-2. Run `pnpm db:migrate --name <short_description>` and review the generated SQL in `backend/prisma/migrations/`.
-3. Run `pnpm db:generate` to refresh the client types.
-4. Commit the schema change and the new migration folder together.
-
-### Notes
-
-- The generated client lives in `backend/src/generated/prisma` and is not committed.
-- Prisma 7 does not run `generate` or the seed script after `migrate dev`, so run them yourself.
-- `migrate dev` uses the shadow database from `SHADOW_DATABASE_URL`, which the compose init script creates.
-- Never edit a migration that has been applied or merged. Add a new one instead.
-- After the first `pnpm install`, run `pnpm approve-builds` and allow the Prisma packages, then commit the change it makes.
+- Frontend: http://localhost:3000
+- Backend API: http://localhost:4000 (health check at `/api/health`)
 
 ## Documentation
 
-Guides and API references live in the [`docs/`](./docs) folder.
+| Document                                     | What is in it                             |
+| -------------------------------------------- | ----------------------------------------- |
+| [Installation](./docs/installation.md)       | Prerequisites and step-by-step setup      |
+| [Docker services](./docs/docker.md)          | Running MySQL and Redis locally           |
+| [Database](./docs/database.md)               | Prisma, migrations, seeding               |
+| [Configuration](./docs/configuration.md)     | Every environment variable                |
+| [Development guide](./docs/development.md)   | Scripts, conventions, Git workflow        |
+| [API errors](./docs/api-errors.md)           | The error format and codes                |
+| [Theming](./docs/theming.md)                 | Light and dark themes, adding custom ones |
+| [Troubleshooting](./docs/troubleshooting.md) | Fixes for common problems                 |
+
+Each app also has its own README: [frontend](./frontend/README.md) and [backend](./backend/README.md).
 
 ## Contributing
 
-This is a hobby project, but suggestions and pull requests are welcome. Feel free to open an issue to start a discussion.
+This is a hobby project, but suggestions and pull requests are welcome. Please read the [development guide](./docs/development.md) first, and open an issue to start a discussion.
 
 ## License
 
