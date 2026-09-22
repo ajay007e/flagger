@@ -2,7 +2,7 @@ import cors from "cors";
 import express from "express";
 
 import { env } from "@/config";
-import { AppError, ERROR_CODES, sessionMiddleware } from "@/lib";
+import { AppError, ERROR_CODES, requestId, sessionMiddleware } from "@/lib";
 import { errorHandler, notFound } from "@/middleware";
 import { router } from "@/router";
 
@@ -13,6 +13,10 @@ export const app = express();
 if (env.isProduction) {
   app.set("trust proxy", 1);
 }
+
+// First: every request (including ones CORS or the session middleware reject)
+// gets a request id, so it can still be traced in logs and audit rows.
+app.use(requestId);
 
 app.use(
   cors({

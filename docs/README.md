@@ -10,5 +10,7 @@
 | [API errors](./api-errors.md)           | The error format and codes                |
 | [Theming](./theming.md)                 | Light and dark themes, adding custom ones |
 | [Troubleshooting](./troubleshooting.md) | Fixes for common problems                 |
+| [Audit](./audit.md)                     |                                           |
+| [Sessions](./sessions.md)               |                                           |
 
 Back to the [project README](../README.md).

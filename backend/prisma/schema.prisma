@@ -25,3 +25,66 @@ model SystemSetting {
 
   @@map("system_settings")
 }
+
+enum AuditActorType {
+  user
+  api_key
+  system
+}
+
+enum AuditOutcome {
+  success
+  failure
+}
+
+// Append-only. No updated_by, updatedAt, or deletedAt: audit rows are never
+// changed or deleted by the app (see L5). Every write goes through the writer
+// helper in src/lib/audit, never prisma.auditLog directly.
+model AuditLog {
+  id BigInt @id @default(autoincrement()) @db.UnsignedBigInt
+
+  createdAt DateTime @default(now()) @map("created_at") @db.DateTime(3)
+
+  actorType AuditActorType @map("actor_type")
+  // Id of the user or api key that acted. Null for "system" and for events
+  // with an unauthenticated actor (e.g. a failed login with an unknown email).
+  actorId   Int?           @map("actor_id") @db.UnsignedInt
+
+  // "resource.verb", e.g. "auth.login", "user.created", "access.revoked".
+  action String @db.VarChar(100)
+
+  // What the action happened to. resourceType is always set; resourceId is
+  // null for events with no single target (e.g. a failed login).
+  // String, not Int: some resources (system_settings) use a string key.
+  resourceType String  @map("resource_type") @db.VarChar(100)
+  resourceId   String? @map("resource_id") @db.VarChar(191)
+
+  // Scope, used to filter what a non-admin with audit:read can see (Epic 4).
+  // No foreign keys yet: the projects/entities/environments tables don't exist
+  // until Epic 3. Add them then; a plain nullable Int is safe to keep as-is.
+  projectId     Int? @map("project_id") @db.UnsignedInt
+  entityId      Int? @map("entity_id") @db.UnsignedInt
+  environmentId Int? @map("environment_id") @db.UnsignedInt
+
+  outcome AuditOutcome @default(success)
+
+  // Field-level diff for updates. Both null for actions with nothing to diff
+  // (login, logout). Secrets are stripped before these are written, see
+  // src/lib/audit/sanitize.ts.
+  before Json?
+  after  Json?
+  // Anything else worth keeping that doesn't fit before/after, e.g. the
+  // attempted email on a failed login. Also sanitized.
+  metadata Json?
+
+  // Groups every audit row written by one HTTP request.
+  requestId String  @map("request_id") @db.Char(36)
+  ipAddress String? @map("ip_address") @db.VarChar(45)
+  userAgent String? @map("user_agent") @db.VarChar(512)
+
+  @@index([createdAt])
+  @@index([resourceType, resourceId])
+  @@index([actorType, actorId, action, createdAt])
+  @@index([projectId, createdAt])
+  @@map("audit_logs")
+}
