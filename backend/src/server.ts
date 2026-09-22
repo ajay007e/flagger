@@ -1,11 +1,15 @@
 import { app } from "@/app";
 import { env } from "@/config";
 import { connectDatabase } from "@/db";
+import { connectRedis } from "@/redis";
 
 async function start(): Promise<void> {
   try {
     await connectDatabase();
     console.log("Connected to MySQL");
+
+    await connectRedis();
+    console.log("Connected to Redis");
 
     app.listen(env.port, () => {
       console.log(`Server running on port ${env.port}`);
