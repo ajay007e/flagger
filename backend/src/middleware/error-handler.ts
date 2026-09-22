@@ -7,7 +7,7 @@ import {
   ERROR_STATUS,
   type ErrorCode,
   type ErrorResponse,
-} from "@/errors";
+} from "@/lib";
 
 import {
   CLIENT_ERROR_MESSAGES,

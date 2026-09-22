@@ -1,5 +1,5 @@
 import { disconnectDatabase, prisma } from "./client";
-import { DEFAULT_SYSTEM_SETTINGS } from "./constants";
+import { DEFAULT_SYSTEM_SETTINGS } from "../constants";
 
 // Safe to run repeatedly: existing rows are never overwritten (update is empty),
 // so values changed later through the app are kept.

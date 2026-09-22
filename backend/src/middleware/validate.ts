@@ -1,7 +1,7 @@
 import type { RequestHandler } from "express";
 import type { ZodType } from "zod";
 
-import { AppError, ERROR_CODES } from "@/errors";
+import { AppError, ERROR_CODES } from "@/lib";
 
 type Issue = { path: PropertyKey[]; code: string; message: string };
 

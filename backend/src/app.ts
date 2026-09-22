@@ -1,13 +1,36 @@
 import cors from "cors";
 import express from "express";
 
+import { env } from "@/config";
+import { AppError, ERROR_CODES, sessionMiddleware } from "@/lib";
 import { errorHandler, notFound } from "@/middleware";
 import { router } from "@/router";
 
 export const app = express();
 
-app.use(cors());
+// Required for `cookie.secure` and rate limiting (later) to work correctly behind a
+// reverse proxy / load balancer in production.
+if (env.isProduction) {
+  app.set("trust proxy", 1);
+}
+
+app.use(
+  cors({
+    origin(origin, callback) {
+      // No Origin header: same-origin requests, curl, server-to-server calls.
+      if (!origin || env.allowedOrigins.includes(origin)) {
+        callback(null, true);
+        return;
+      }
+
+      callback(new AppError(ERROR_CODES.UNAUTHENTICATED, "Origin not allowed"));
+    },
+    credentials: true,
+  }),
+);
+
 app.use(express.json());
+app.use(sessionMiddleware);
 
 app.get("/", (_req, res) => {
   res.json({
