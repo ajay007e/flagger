@@ -1,6 +1,7 @@
 import cors from "cors";
 import express from "express";
 
+import { errorHandler, notFound } from "@/middleware";
 import { router } from "@/router";
 
 export const app = express();
@@ -21,3 +22,6 @@ app.get("/", (_req, res) => {
 });
 
 app.use("/api", router);
+
+app.use(notFound);
+app.use(errorHandler);

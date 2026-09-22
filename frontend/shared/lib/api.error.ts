@@ -1,6 +1,6 @@
 import { isAxiosError } from "axios";
 
-import type { ErrorResponse } from "../types";
+import type { ErrorCode, ErrorResponse } from "../types";
 import { DEFAULT_ERROR_MESSAGE, NETWORK_ERROR_MESSAGE } from "./constants";
 
 /**
@@ -24,4 +24,13 @@ export function getErrorMessage(
   }
 
   return fallback;
+}
+
+/** The machine-readable `code` from the backend's ErrorResponse, if there is one. */
+export function getErrorCode(error: unknown): ErrorCode | undefined {
+  if (isAxiosError<Partial<ErrorResponse>>(error)) {
+    return error.response?.data?.code;
+  }
+
+  return undefined;
 }
