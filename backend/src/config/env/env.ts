@@ -7,7 +7,7 @@ import {
   NODE_ENVIRONMENTS,
   PLACEHOLDER_PREFIX,
   SECRET_MIN_LENGTH,
-} from "./constants";
+} from "../constants";
 
 const urlWithProtocol = (protocols: readonly string[]) =>
   z.string().refine(

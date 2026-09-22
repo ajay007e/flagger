@@ -1,7 +1,6 @@
 import { app } from "@/app";
 import { env } from "@/config";
-import { connectDatabase } from "@/db";
-import { connectRedis } from "@/redis";
+import { connectDatabase, connectRedis } from "@/config";
 
 async function start(): Promise<void> {
   try {

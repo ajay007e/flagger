@@ -2,10 +2,9 @@ import cors from "cors";
 import express from "express";
 
 import { env } from "@/config";
-import { AppError, ERROR_CODES } from "@/errors";
+import { AppError, ERROR_CODES, sessionMiddleware } from "@/lib";
 import { errorHandler, notFound } from "@/middleware";
 import { router } from "@/router";
-import { sessionMiddleware } from "@/session";
 
 export const app = express();
 

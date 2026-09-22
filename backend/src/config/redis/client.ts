@@ -1,6 +1,6 @@
 import { Redis } from "ioredis";
 
-import { env } from "@/config";
+import { env } from "@/config/env";
 
 // One shared client for the whole app.
 // lazyConnect: connectRedis() below controls exactly when the first connection happens.

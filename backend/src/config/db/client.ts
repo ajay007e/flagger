@@ -1,6 +1,6 @@
 import { PrismaMariaDb } from "@prisma/adapter-mariadb";
 
-import { env } from "@/config";
+import { env } from "@/config/env";
 import { PrismaClient } from "@/generated/prisma/client";
 
 // One shared client for the whole app.

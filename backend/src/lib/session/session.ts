@@ -1,8 +1,7 @@
 import { RedisStore } from "connect-redis";
 import session, { type SessionOptions } from "express-session";
 
-import { env } from "@/config";
-import { redis } from "@/redis";
+import { env, redis } from "@/config";
 
 import {
   SESSION_COOKIE_NAME,
