@@ -5,6 +5,6 @@ import type { HealthData } from "./types";
 
 export const healthService = {
   check() {
-    return api.get<ApiResponse<HealthData>>("/api/health");
+    return api.get<ApiResponse<HealthData>>("/api/v1/health");
   },
 };
