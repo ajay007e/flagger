@@ -17,13 +17,55 @@ datasource db {
 model SystemSetting {
   key       String    @id @map("setting_key") @db.VarChar(100)
   value     Json
-  // Plain column for now. The foreign key to users is added together with the users table.
   updatedBy Int?      @map("updated_by") @db.UnsignedInt
   createdAt DateTime  @default(now()) @map("created_at") @db.DateTime(3)
   updatedAt DateTime  @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
   deletedAt DateTime? @map("deleted_at") @db.DateTime(3)
 
+  updatedByUser User? @relation("SystemSettingUpdatedBy", fields: [updatedBy], references: [id], onDelete: Restrict)
+
   @@map("system_settings")
+}
+
+enum UserType {
+  admin
+  user
+}
+
+model User {
+  id Int @id @default(autoincrement()) @db.UnsignedInt
+
+  email String @unique @db.VarChar(255)
+  name  String @db.VarChar(255)
+  // bcrypt hash. Never the plain password. Excluded from every response by
+  // the repository, never selected wholesale (see repositories/user).
+  password String @db.VarChar(255)
+
+  type     UserType @default(user)
+  isActive Boolean  @default(true) @map("is_active")
+
+  // Set on creation and on an admin-issued reset. Cleared when the user sets
+  // their own password. While true, every route except change-password,
+  // me, and logout is blocked (see A6, not yet built).
+  mustChangePassword Boolean @default(false) @map("must_change_password")
+
+  // Bumped on password change or reset. A session whose stored version does
+  // not match this logs out on its next request (see docs/sessions.md, A4/A6,
+  // neither built yet). Sessions are otherwise stateless w.r.t. this table.
+  sessionVersion Int @default(1) @map("session_version")
+
+  updatedBy Int?      @map("updated_by") @db.UnsignedInt
+  createdAt DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt DateTime  @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  deletedAt DateTime? @map("deleted_at") @db.DateTime(3)
+
+  // Self-relation: who last changed this user's row.
+  updatedByUser User?  @relation("UserUpdatedBy", fields: [updatedBy], references: [id], onDelete: Restrict)
+  updatedUsers  User[] @relation("UserUpdatedBy")
+
+  updatedSystemSettings SystemSetting[] @relation("SystemSettingUpdatedBy")
+
+  @@map("users")
 }
 
 enum AuditActorType {
