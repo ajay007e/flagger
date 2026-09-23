@@ -3,9 +3,9 @@ import { Router } from "express";
 import { requireAuth } from "@/lib/auth";
 import { asyncHandler, validateBody } from "@/middleware";
 
+import { getMe, postLogin, postSetupAdmin } from "./auth.controller";
 import { requireSetupKey } from "./auth.utils";
-import { setupAdminSchema } from "./auth.validator";
-import { postSetupAdmin, getMe } from "./auth.controller";
+import { loginSchema, setupAdminSchema } from "./auth.validator";
 
 export const authRouter = Router();
 
@@ -17,3 +17,4 @@ authRouter.post(
 );
 
 authRouter.get("/me", requireAuth, getMe);
+authRouter.post("/login", validateBody(loginSchema), asyncHandler(postLogin));

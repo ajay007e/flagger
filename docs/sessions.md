@@ -70,6 +70,6 @@ On success, the current user (safe fields only, no password hash) is available v
 
 ## What is not built yet
 
-- Forced password change (A6).
+- Session validation middleware that checks `req.session` against the database on every request, and forced password change (A4, A6).
 - Logging out every device at once (needs an index of session ids per user, or relies on the `sessionVersion` bump on password reset, A6).
 - Rate limiting on login (a later, separate story).

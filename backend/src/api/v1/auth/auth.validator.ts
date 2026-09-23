@@ -15,3 +15,12 @@ export const setupAdminSchema = z.object({
       message: `must be at most ${PASSWORD_MAX_BYTES} bytes`,
     }),
 });
+
+// Deliberately looser than setupAdminSchema: a login attempt just needs
+// "something was submitted". Creation-time password rules (min length, byte
+// limit) don't belong here — a policy change later should never lock out an
+// existing user whose password predates it.
+export const loginSchema = z.object({
+  email: z.string().trim().toLowerCase().email("must be a valid email address"),
+  password: z.string().min(1, "is required"),
+});

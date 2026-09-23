@@ -8,18 +8,41 @@ import {
   type RequestMeta,
 } from "@/lib/audit";
 import { AppError, ERROR_CODES } from "@/lib/errors";
-import { userRepository } from "@/repositories/user";
+import { userRepository, type User } from "@/repositories/user";
 
-import { AUTH_ACTIONS, BCRYPT_COST } from "./auth.constants";
-import type { SetupAdminInput, SetupAdminResult } from "./auth.types";
+import {
+  AUTH_ACTIONS,
+  BCRYPT_COST,
+  INVALID_CREDENTIALS_MESSAGE,
+} from "./auth.constants";
+import type {
+  LoginInput,
+  LoginResult,
+  SetupAdminInput,
+  SetupAdminResult,
+} from "./auth.types";
 
-function toResult(user: {
-  id: number;
-  email: string;
-  name: string;
-  type: string;
-}): SetupAdminResult {
+// Computed once at startup (a real bcrypt hash, not a hardcoded literal) so a
+// login attempt for an email that doesn't exist still pays the same bcrypt.compare
+// cost as one that does, and response time can't be used to enumerate accounts.
+const DUMMY_PASSWORD_HASH = bcrypt.hashSync(
+  "dummy-password-for-timing-parity",
+  BCRYPT_COST,
+);
+
+function toSetupAdminResult(user: User): SetupAdminResult {
   return { id: user.id, email: user.email, name: user.name, type: user.type };
+}
+
+function toLoginResult(user: User): LoginResult {
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    type: user.type,
+    mustChangePassword: user.mustChangePassword,
+    sessionVersion: user.sessionVersion,
+  };
 }
 
 /**
@@ -57,7 +80,7 @@ export async function setupAdmin(
       updatedBy: null,
     });
 
-    const result = toResult(user);
+    const result = toSetupAdminResult(user);
 
     await writeAuditLog(tx, {
       actorType: ACTOR_TYPES.SYSTEM,
@@ -71,4 +94,57 @@ export async function setupAdmin(
 
     return result;
   });
+}
+
+/**
+ * Verifies email and password. Wrong email, wrong password, and a disabled or
+ * deleted account all reject with the exact same error, so nothing about the
+ * response (message, status, or timing) reveals which case occurred.
+ */
+export async function login(
+  input: LoginInput,
+  request: RequestMeta,
+): Promise<LoginResult> {
+  const user = await userRepository.findByEmail(prisma, input.email);
+
+  // Always compare against *some* hash — the user's real one if they exist,
+  // otherwise the dummy — so this line runs the same bcrypt work either way.
+  const passwordMatches = await bcrypt.compare(
+    input.password,
+    user?.password ?? DUMMY_PASSWORD_HASH,
+  );
+
+  if (!user || !user.isActive || !passwordMatches) {
+    await writeAuditLog(prisma, {
+      actorType: ACTOR_TYPES.SYSTEM,
+      action: AUTH_ACTIONS.LOGIN_FAILED,
+      resourceType: "user",
+      resourceId: user ? String(user.id) : null,
+      outcome: OUTCOMES.FAILURE,
+      // The attempted email, never the password. If a real user was found,
+      // resourceId above already identifies them, so this is only useful for
+      // the "no matching account" case.
+      metadata: user ? undefined : { attemptedEmail: input.email },
+      request,
+    });
+
+    throw new AppError(
+      ERROR_CODES.UNAUTHENTICATED,
+      INVALID_CREDENTIALS_MESSAGE,
+    );
+  }
+
+  const result = toLoginResult(user);
+
+  await writeAuditLog(prisma, {
+    actorType: ACTOR_TYPES.USER,
+    actorId: user.id,
+    action: AUTH_ACTIONS.LOGIN,
+    resourceType: "user",
+    resourceId: String(user.id),
+    outcome: OUTCOMES.SUCCESS,
+    request,
+  });
+
+  return result;
 }
