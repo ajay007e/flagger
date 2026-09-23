@@ -1,7 +1,7 @@
 import { Router } from "express";
 
-import { healthRouter } from "@/api/health";
+import { v1Router } from "@/api/v1";
 
 export const router = Router();
 
-router.use("/health", healthRouter);
+router.use("/v1", v1Router);

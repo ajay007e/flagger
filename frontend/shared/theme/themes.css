@@ -1,7 +1,7 @@
 /*
  * Theme tokens. Each theme only defines values for the same set of variables.
  * To add a custom theme, copy a block below, change the data-theme value and
- * the colors, then register it in shared/theme/themes.ts.
+ * the colors, then register it in shared/theme/constants.ts.
  */
 
 :root,
@@ -19,6 +19,8 @@
   --success-foreground: #ffffff;
   --danger: #dc2626;
   --danger-foreground: #ffffff;
+  --warning: #d97706;
+  --warning-foreground: #ffffff;
 }
 
 [data-theme="dark"] {
@@ -35,4 +37,6 @@
   --success-foreground: #0b1120;
   --danger: #f87171;
   --danger-foreground: #0b1120;
+  --warning: #fbbf24;
+  --warning-foreground: #451a03;
 }
