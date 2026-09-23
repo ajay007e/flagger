@@ -45,6 +45,8 @@ All variables are validated when the server starts, and it exits with a list of 
 
 Details: [docs/configuration.md](../docs/configuration.md).
 
+Session behavior (cookies, Redis, CORS) is documented in [docs/sessions.md](../docs/sessions.md).
+
 ## Structure
 
 ```
@@ -55,10 +57,16 @@ backend/
 ├── prisma.config.ts      # Prisma CLI configuration
 └── src/
     ├── api/              # Route handlers, one file or folder per resource
-    ├── config/           # Validated environment (import { env } from "@/config")
-    ├── db/               # Prisma client, seed, database constants
-    ├── errors/           # AppError and error codes
+    ├── config/           # Environment, database, and Redis
+    │   ├── env.ts        # Validated environment (import { env } from "@/config")
+    │   ├── db/           # Prisma client, seed, database constants
+    │   └── redis/        # Redis client
+    ├── lib/              # Cross-cutting building blocks
+    │   ├── audit/        # Append-only audit log: writer, sanitizer, request id
+    │   ├── errors/       # AppError and error codes
+    │   └── session/      # express-session + Redis store configuration
     ├── middleware/       # notFound, errorHandler, validateBody, asyncHandler
+    ├── bootstrap.ts       # Runs before anything else (DNS, process-level setup)
     ├── app.ts            # Express app
     ├── router.ts         # Mounts the API routes under /api
     └── server.ts         # Entry point
@@ -66,12 +74,26 @@ backend/
 
 ## Endpoints
 
-| Method | Path          | Description                               |
-| ------ | ------------- | ----------------------------------------- |
-| GET    | `/`           | Basic API info                            |
-| GET    | `/api/health` | Health check, returns `{ success, data }` |
+| Method | Path                       | Description                                              |
+| ------ | -------------------------- | -------------------------------------------------------- |
+| GET    | `/`                        | Basic API info                                           |
+| GET    | `/api/v1/health`           | Health check: overall status plus MySQL and Redis status |
+| POST   | `/api/v1/auth/setup-admin` | Create the first admin (see below)                       |
 
 Every error response uses the same shape, see [docs/api-errors.md](../docs/api-errors.md).
+
+## First admin
+
+Create the first admin with the setup key from `SETUP_API_KEY` in `backend/.env`. The endpoint works only while no active admin exists; afterwards it returns 404.
+
+```bash
+curl -X POST http://localhost:4000/api/v1/auth/setup-admin \
+  -H "Content-Type: application/json" \
+  -H "x-setup-key: <your SETUP_API_KEY>" \
+  -d '{"email": "admin@example.com", "name": "Admin", "password": "a-strong-password"}'
+```
+
+Every meaningful action is recorded in an append-only audit log, see [docs/audit.md](../docs/audit.md).
 
 ## Conventions
 
