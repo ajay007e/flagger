@@ -1,10 +1,11 @@
 import { Router } from "express";
 
+import { requireAuth } from "@/lib/auth";
 import { asyncHandler, validateBody } from "@/middleware";
 
 import { requireSetupKey } from "./auth.utils";
 import { setupAdminSchema } from "./auth.validator";
-import { postSetupAdmin } from "./auth.controller";
+import { postSetupAdmin, getMe } from "./auth.controller";
 
 export const authRouter = Router();
 
@@ -14,3 +15,5 @@ authRouter.post(
   validateBody(setupAdminSchema),
   asyncHandler(postSetupAdmin),
 );
+
+authRouter.get("/me", requireAuth, getMe);
