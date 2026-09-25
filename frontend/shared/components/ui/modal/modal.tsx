@@ -14,8 +14,8 @@ const FOCUSABLE_SELECTOR =
   'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 /**
- * Generic modal dialog: portal, backdrop, a mobile-responsive panel (full-screen
- * sheet below `sm:`, centered card above), a focus trap, and a background
+ * Generic modal dialog: portal, backdrop, a mobile-responsive panel (a bottom
+ * sheet below `sm:`, a centered card above), a focus trap, and a background
  * scroll lock while open. Has no knowledge of auth or any specific use case —
  * a mandatory "log in to continue" modal is built by wrapping this with
  * dismissible={false} and no onClose, not by this component itself.
@@ -106,7 +106,7 @@ export default function Modal({
   }
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center sm:p-4">
+    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4">
       <div
         aria-hidden="true"
         onClick={dismissible ? onClose : undefined}
@@ -122,6 +122,10 @@ export default function Modal({
         tabIndex={-1}
         className={cn(modalPanelVariants({ size }), className)}
       >
+        {/* Grab-handle affordance, bottom-sheet only (hidden from sm: up). Purely
+            visual — reads as "this slides up from the bottom", no drag gesture. */}
+        <div className="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-border sm:hidden" />
+
         {title || dismissible ? (
           <div className="flex items-start justify-between gap-4 border-b border-border p-4">
             <div className="flex flex-col gap-1">
