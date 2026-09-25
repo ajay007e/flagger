@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
-import { ApiStatus } from "@/features/health";
+import { AuthGate } from "@/feature/auth";
+import { ApiStatus } from "@/feature/health";
 import { Footer, Navbar, Toaster } from "@/shared/components";
 import { APP_NAME } from "@/shared/config";
 import { ThemeProvider, ThemeScript } from "@/shared/theme";
@@ -24,7 +25,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           <Navbar>
             <ApiStatus />
           </Navbar>
-          {children}
+          <AuthGate>{children}</AuthGate>
           <Footer />
           <Toaster />
         </ThemeProvider>

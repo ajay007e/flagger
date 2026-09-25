@@ -79,6 +79,7 @@ backend/
 | GET    | `/`                        | Basic API info                                           |
 | GET    | `/api/v1/health`           | Health check: overall status plus MySQL and Redis status |
 | POST   | `/api/v1/auth/setup-admin` | Create the first admin (see below)                       |
+| POST   | `/api/v1/auth/login`       | Log in with email and password, starts a session         |
 
 Every error response uses the same shape, see [docs/api-errors.md](../docs/api-errors.md).
 

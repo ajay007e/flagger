@@ -4,4 +4,5 @@ export {
   SESSION_TTL_SECONDS,
 } from "./constants";
 export { sessionMiddleware } from "./session";
+export { establishSession } from "./session.utils";
 export type { SessionData } from "./types";

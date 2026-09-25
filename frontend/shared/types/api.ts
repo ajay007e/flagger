@@ -8,16 +8,10 @@ export interface SuccessResponse<T> {
   message?: string;
 }
 
-export interface MessageResponse {
-  success: true;
-  message: string;
-}
-
 export interface ErrorResponse {
   success: false;
   message: string;
   code: ErrorCode;
 }
 
-export type ApiResponse<T> =
-  SuccessResponse<T> | MessageResponse | ErrorResponse;
+export type ApiResponse<T> = SuccessResponse<T> | ErrorResponse;
