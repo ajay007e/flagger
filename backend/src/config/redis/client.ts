@@ -1,16 +1,14 @@
-import { Redis } from "ioredis";
+import { createClient } from "redis";
 
-import { env } from "@/config/env";
+import { env } from "@/config";
 
-// One shared client for the whole app.
-// lazyConnect: connectRedis() below controls exactly when the first connection happens.
-export const redis = new Redis(env.redisUrl, {
-  lazyConnect: true,
-  maxRetriesPerRequest: 3,
-});
+// One shared client for the whole app. createClient() does not connect on its
+// own; connectRedis() below controls exactly when the first connection happens.
+export const redis = createClient({ url: env.redisUrl });
 
-// Logged, not thrown: ioredis retries in the background and emits "error" on every
-// failed attempt. An unhandled "error" event would otherwise crash the process.
+// Logged, not thrown: the client retries in the background and emits "error"
+// on every failed attempt. An unhandled "error" event would otherwise crash
+// the process.
 redis.on("error", (error) => {
   console.error("[redis] connection error:", error.message);
 });
