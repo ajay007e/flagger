@@ -1,3 +1,5 @@
+"use client";
+
 import { Eye, EyeOff, Loader2, X } from "lucide-react";
 import { forwardRef, useState, type ChangeEvent, type ReactNode } from "react";
 
