@@ -29,7 +29,7 @@ No roles, permissions, or profile data. Those are loaded fresh from MySQL on eve
 | `sameSite`       | `lax`                                                                       |
 | `trust proxy`    | Enabled in production, required for `secure` cookies behind a reverse proxy |
 
-Source: `backend/src/session/`.
+Source: `backend/src/lib/session/`.
 
 ## CORS
 
@@ -47,7 +47,29 @@ In production, deploy the frontend and backend under the same site (for example 
 - Reconnection is handled by the Redis client in the background; a temporary Redis outage while the server is already running logs connection errors without crashing the process.
 - Only the app's own session keys use the `flagger:sess:` prefix, so tools like `redis-cli --scan --pattern 'flagger:sess:*'` stay scoped to this app even if Redis is shared.
 
+## How a session is created
+
+`establishSession(req, user)` (`backend/src/lib/session/session.utils.ts`) is the one place that logs a request into a session. It regenerates the session id first, then stores `{ userId, sessionVersion }`, so a pre-existing session id can never be reused with a different identity (session fixation). A2 (login) is its first caller; any future login-like flow (e.g. admin impersonation) should call the same helper rather than touching `req.session` directly.
+
+## Requiring a valid session on a route
+
+`requireAuth` (`backend/src/lib/auth/auth.utils.ts`) is opt-in per route:
+
+```ts
+router.get("/me", requireAuth, asyncHandler(getMe));
+```
+
+It never runs globally in `app.ts` — public routes (`/auth/login`, `/auth/setup-admin`) must stay reachable without a session.
+
+On each request it loads the user fresh from the database (no caching in the session itself beyond `userId`/`sessionVersion`), so disabling a user, deleting them, or resetting their password takes effect on that user's very next request, not just their next login. It rejects with:
+
+- `UNAUTHENTICATED` — no session at all.
+- `SESSION_EXPIRED` — a session exists but the user is missing, deleted, inactive, or their stored `sessionVersion` no longer matches the session's (i.e. their password was changed or reset since this session was issued). The session is destroyed server-side in this case, not just rejected.
+
+On success, the current user (safe fields only, no password hash) is available via `getCurrentUser(res)`, read from `res.locals.currentUser`, not from `req` — same `res.locals` approach used for the request id, since it doesn't depend on Express's ambient type augmentation working correctly.
+
 ## What is not built yet
 
-- Logging out every device at once (needs an index of session ids per user, or relies on the `sessionVersion` bump).
-- Session validation middleware, forced password change, and rate limiting on login are separate tickets (A4, A6, and a later rate-limiting story).
+- Forced password change (A6).
+- Logging out every device at once (needs an index of session ids per user, or relies on the `sessionVersion` bump on password reset, A6).
+- Rate limiting on login (a later, separate story).

@@ -1,2 +1,2 @@
 export * as userRepository from "./user.repository";
-//export type { CreateUserInput, User } from "./user.types";
+export type { CreateUserInput, User } from "./user.types";

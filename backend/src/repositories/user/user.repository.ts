@@ -17,6 +17,12 @@ export function findByEmail(
   });
 }
 
+export function findById(client: DbClient, id: number): Promise<User | null> {
+  return client.user.findFirst({
+    where: { id, deletedAt: null },
+  });
+}
+
 /** True if at least one active, non-deleted admin exists. Used to gate first-admin setup. */
 export async function hasActiveAdmin(client: DbClient): Promise<boolean> {
   const admin = await client.user.findFirst({
