@@ -12,4 +12,8 @@ export const authService = {
   me() {
     return api.get<ApiResponse<SessionUser>>("/api/v1/auth/me");
   },
+
+  logout() {
+    return api.post<ApiResponse<null>>("/api/v1/auth/logout");
+  },
 };
