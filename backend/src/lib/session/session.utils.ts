@@ -7,7 +7,8 @@ import type { SessionData } from "./types";
 // in this project's pnpm setup (see the same issue with req.requestId in
 // src/lib/audit/request-id.ts). This local cast sidesteps that: it doesn't rely
 // on the ambient augmentation, so it works regardless of whether that merges.
-type SessionWithData = Request["session"] & SessionData;
+// Exported so callers (e.g. lib/auth) don't each redefine the same cast.
+export type SessionWithData = Request["session"] & SessionData;
 
 function regenerateSession(req: Request): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -39,4 +40,16 @@ export async function establishSession(
   session.sessionVersion = user.sessionVersion;
 
   await saveSession(req);
+}
+
+/**
+ * Ends the current request's session: removes it from the store (Redis) and
+ * clears req.session in memory. Safe to call even when there was no session
+ * to begin with (e.g. a logout call with no cookie) — destroying an already-
+ * nonexistent store record is a no-op, not an error.
+ */
+export function destroySession(req: Request): Promise<void> {
+  return new Promise((resolve, reject) => {
+    req.session.destroy((error) => (error ? reject(error) : resolve()));
+  });
 }

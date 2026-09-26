@@ -2,21 +2,10 @@ import type { NextFunction, Request, Response } from "express";
 
 import { prisma } from "@/config/db";
 import { AppError, ERROR_CODES } from "@/lib/errors";
-import type { SessionData } from "@/lib/session";
+import { destroySession, type SessionWithData } from "@/lib/session";
 import { userRepository, type User } from "@/repositories/user";
 
 import type { SessionUser } from "./auth.types";
-
-// Same reasoning as lib/session/session.utils.ts: a local cast instead of
-// relying on the ambient `declare module "express-session"` merge, which
-// doesn't reliably apply in this project's pnpm setup.
-type SessionWithData = Request["session"] & SessionData;
-
-function destroySession(req: Request): Promise<void> {
-  return new Promise((resolve, reject) => {
-    req.session.destroy((error) => (error ? reject(error) : resolve()));
-  });
-}
 
 function toSessionUser(user: User): SessionUser {
   return {
