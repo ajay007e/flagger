@@ -1,1 +1,1 @@
-export { AuthGate } from "./components";
+export { AuthGate, AccountMenu } from "./components";

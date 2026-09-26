@@ -20,7 +20,7 @@ const FOCUSABLE_SELECTOR =
  * a mandatory "log in to continue" modal is built by wrapping this with
  * dismissible={false} and no onClose, not by this component itself.
  */
-export default function Modal({
+export function Modal({
   open,
   onClose,
   dismissible = true,

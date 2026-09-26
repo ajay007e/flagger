@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 import { useApiQuery } from "@/shared/hooks";
-import { setAuthenticated } from "@/shared/lib/auth";
+import { getErrorMessage } from "@/shared/lib";
+import { setAuthenticated, setUnauthenticated } from "@/shared/lib/auth";
 
 import { authService } from "./auth.service";
 
@@ -24,4 +25,26 @@ export function useCurrentUser() {
   }, [query.data]);
 
   return query;
+}
+
+/** Logs the current user out. Always ends in "unauthenticated" (the request
+ * is nearly impossible to fail meaningfully — see backend A3 — and even a
+ * network error shouldn't leave the UI claiming to still be logged in). */
+export function useLogout() {
+  const [loading, setLoading] = useState(false);
+
+  async function logout(): Promise<void> {
+    setLoading(true);
+
+    try {
+      await authService.logout();
+    } catch (error) {
+      console.error(getErrorMessage(error));
+    } finally {
+      setUnauthenticated();
+      setLoading(false);
+    }
+  }
+
+  return { logout, loading };
 }
