@@ -14,6 +14,13 @@ import type { AuthState, SessionUser } from "./auth.types";
 let state: AuthState = { status: "checking", user: null };
 const listeners = new Set<() => void>();
 
+// A single stable reference for useAuth's getServerSnapshot below. Returning a
+// new object literal there each call (as this previously did inline) violates
+// useSyncExternalStore's requirement that a snapshot function returns the same
+// reference when nothing has changed, which React reports as "The result of
+// getServerSnapshot should be cached to avoid an infinite loop."
+const INITIAL_STATE: AuthState = { status: "checking", user: null };
+
 function emit(): void {
   listeners.forEach((listener) => listener());
 }
@@ -50,8 +57,5 @@ export function setUnauthenticated(): void {
 }
 
 export function useAuth(): AuthState {
-  return useSyncExternalStore(subscribe, getSnapshot, () => ({
-    status: "checking",
-    user: null,
-  }));
+  return useSyncExternalStore(subscribe, getSnapshot, () => INITIAL_STATE);
 }
