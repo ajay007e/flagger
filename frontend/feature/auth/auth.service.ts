@@ -2,7 +2,7 @@ import type { ApiResponse } from "@/shared";
 import { api } from "@/shared/lib";
 import type { SessionUser } from "@/shared/lib/auth";
 
-import type { LoginInput } from "./auth.types";
+import type { ChangePasswordInput, LoginInput } from "./auth.types";
 
 export const authService = {
   login(input: LoginInput) {
@@ -15,5 +15,9 @@ export const authService = {
 
   logout() {
     return api.post<ApiResponse<null>>("/api/v1/auth/logout");
+  },
+
+  changePassword(input: ChangePasswordInput) {
+    return api.post<ApiResponse<null>>("/api/v1/auth/change-password", input);
   },
 };

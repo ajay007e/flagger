@@ -27,7 +27,6 @@ export function AccountMenu() {
   if (!user) {
     return null;
   }
-  console.log(user);
 
   async function handleConfirmLogout() {
     await logout();
