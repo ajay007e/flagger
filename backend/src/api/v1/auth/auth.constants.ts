@@ -18,4 +18,5 @@ export const AUTH_ACTIONS = {
   LOGIN: "auth.login",
   LOGIN_FAILED: "auth.login_failed",
   LOGOUT: "auth.logout",
+  PASSWORD_CHANGED: "auth.password_changed",
 } as const;

@@ -1,9 +1,14 @@
 import type { z } from "zod";
 
-import type { loginSchema, setupAdminSchema } from "./auth.validator";
+import type {
+  changePasswordSchema,
+  loginSchema,
+  setupAdminSchema,
+} from "./auth.validator";
 
 export type SetupAdminInput = z.infer<typeof setupAdminSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
+export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 
 /** What the setup-admin endpoint returns. Built explicitly, field by field, so
  * a future change to the User model can never accidentally leak the password
@@ -31,3 +36,10 @@ export interface LoginResult {
 
 /** The subset of LoginResult actually sent back to the client. */
 export type LoginResponse = Omit<LoginResult, "sessionVersion">;
+
+/** What changePassword resolves internally — just enough for the controller to
+ * re-establish this device's session with the bumped sessionVersion. Nothing
+ * of this is sent in the HTTP response. */
+export interface ChangePasswordResult {
+  sessionVersion: number;
+}

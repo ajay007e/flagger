@@ -1,5 +1,5 @@
 import type { DbClient } from "../types";
-import type { CreateUserInput, User } from "./user.types";
+import type { CreateUserInput, UpdateUserInput, User } from "./user.types";
 
 /**
  * The only place that reads or writes the `users` table. Callers (auth.service,
@@ -45,6 +45,26 @@ export function create(
       type: input.type,
       isActive: input.isActive,
       mustChangePassword: input.mustChangePassword,
+      updatedBy: input.updatedBy,
+    },
+  });
+}
+
+export function update(
+  client: DbClient,
+  id: number,
+  input: UpdateUserInput,
+): Promise<User> {
+  return client.user.update({
+    where: { id },
+    data: {
+      email: input.email,
+      name: input.name,
+      password: input.password,
+      type: input.type,
+      isActive: input.isActive,
+      mustChangePassword: input.mustChangePassword,
+      sessionVersion: input.sessionVersion,
       updatedBy: input.updatedBy,
     },
   });

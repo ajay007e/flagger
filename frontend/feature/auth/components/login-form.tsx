@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 
-import { Button, Field } from "@/shared/components";
+import { Button, Field, FormError } from "@/shared/components";
 import { getErrorMessage } from "@/shared/lib";
 import { setAuthenticated } from "@/shared/lib/auth";
 
@@ -48,14 +48,7 @@ export function LoginForm() {
       noValidate
       className="flex flex-col gap-4"
     >
-      {formError ? (
-        <p
-          role="alert"
-          className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger"
-        >
-          {formError}
-        </p>
-      ) : null}
+      <FormError>{formError}</FormError>
 
       <Field label="Email" required error={errors.email?.message}>
         <Field.Input

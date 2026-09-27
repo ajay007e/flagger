@@ -16,6 +16,8 @@ import {
   INVALID_CREDENTIALS_MESSAGE,
 } from "./auth.constants";
 import type {
+  ChangePasswordInput,
+  ChangePasswordResult,
   LoginInput,
   LoginResult,
   SetupAdminInput,
@@ -147,4 +149,73 @@ export async function login(
   });
 
   return result;
+}
+
+/**
+ * Changes the caller's own password: verifies the current one, rejects a new
+ * one that resolves to the same hash (the schema already rejects an identical
+ * string; this catches it authoritatively), stores the new hash, clears
+ * mustChangePassword, and bumps sessionVersion. The bumped version logs this
+ * user out on every *other* device on their next request; the controller is
+ * responsible for re-establishing the session on *this* device with the new
+ * version, using the sessionVersion returned here.
+ */
+export async function changePassword(
+  userId: number,
+  input: ChangePasswordInput,
+  request: RequestMeta,
+): Promise<ChangePasswordResult> {
+  const user = await userRepository.findById(prisma, userId);
+
+  if (!user) {
+    // Their session was valid a moment ago (requireAuth already checked), but
+    // the row is gone now — treat it the same as any other invalid session.
+    throw new AppError(ERROR_CODES.SESSION_EXPIRED);
+  }
+
+  const currentPasswordMatches = await bcrypt.compare(
+    input.currentPassword,
+    user.password,
+  );
+
+  if (!currentPasswordMatches) {
+    throw new AppError(
+      ERROR_CODES.VALIDATION_ERROR,
+      "Current password is incorrect",
+    );
+  }
+
+  const newPasswordMatchesCurrent = await bcrypt.compare(
+    input.newPassword,
+    user.password,
+  );
+
+  if (newPasswordMatchesCurrent) {
+    throw new AppError(
+      ERROR_CODES.VALIDATION_ERROR,
+      "New password must be different from your current password",
+    );
+  }
+
+  const password = await bcrypt.hash(input.newPassword, BCRYPT_COST);
+  const sessionVersion = user.sessionVersion + 1;
+
+  await userRepository.update(prisma, user.id, {
+    password,
+    mustChangePassword: false,
+    sessionVersion,
+    updatedBy: user.id,
+  });
+
+  await writeAuditLog(prisma, {
+    actorType: ACTOR_TYPES.USER,
+    actorId: user.id,
+    action: AUTH_ACTIONS.PASSWORD_CHANGED,
+    resourceType: "user",
+    resourceId: String(user.id),
+    outcome: OUTCOMES.SUCCESS,
+    request,
+  });
+
+  return { sessionVersion };
 }

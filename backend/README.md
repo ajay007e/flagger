@@ -74,12 +74,15 @@ backend/
 
 ## Endpoints
 
-| Method | Path                       | Description                                              |
-| ------ | -------------------------- | -------------------------------------------------------- |
-| GET    | `/`                        | Basic API info                                           |
-| GET    | `/api/v1/health`           | Health check: overall status plus MySQL and Redis status |
-| POST   | `/api/v1/auth/setup-admin` | Create the first admin (see below)                       |
-| POST   | `/api/v1/auth/login`       | Log in with email and password, starts a session         |
+| Method | Path                           | Description                                                              |
+| ------ | ------------------------------ | ------------------------------------------------------------------------ |
+| GET    | `/`                            | Basic API info                                                           |
+| GET    | `/api/v1/health`               | Health check: overall status plus MySQL and Redis status                 |
+| POST   | `/api/v1/auth/setup-admin`     | Create the first admin (see below)                                       |
+| POST   | `/api/v1/auth/login`           | Log in with email and password, starts a session                         |
+| GET    | `/api/v1/auth/me`              | Current user (requires a valid session)                                  |
+| POST   | `/api/v1/auth/change-password` | Change your own password; required first if `mustChangePassword` is true |
+| POST   | `/api/v1/auth/logout`          | Ends the current session; succeeds even with none                        |
 
 Every error response uses the same shape, see [docs/api-errors.md](../docs/api-errors.md).
 
