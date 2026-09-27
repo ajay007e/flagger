@@ -17,7 +17,12 @@ import {
 
 import { AUTH_ACTIONS } from "./auth.constants";
 import * as authService from "./auth.service";
-import type { LoginInput, LoginResponse, SetupAdminInput } from "./auth.types";
+import type {
+  ChangePasswordInput,
+  LoginInput,
+  LoginResponse,
+  SetupAdminInput,
+} from "./auth.types";
 
 export async function postSetupAdmin(
   req: Request,
@@ -89,4 +94,29 @@ export async function postLogout(req: Request, res: Response): Promise<void> {
   }
 
   res.json({ success: true, message: "Logged out" });
+}
+
+/**
+ * Requires requireAuth({ allowPasswordChange: true }) — this is one of the
+ * two routes reachable while mustChangePassword is still true (the other is
+ * /me). Re-establishes *this* device's session with the bumped
+ * sessionVersion returned by the service; every other device is logged out
+ * on its own next request, once it fails the sessionVersion check.
+ */
+export async function postChangePassword(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  const input = req.body as ChangePasswordInput;
+  const currentUser = getCurrentUser(res);
+
+  const { sessionVersion } = await authService.changePassword(
+    currentUser.id,
+    input,
+    getRequestMeta(req, res),
+  );
+
+  await establishSession(req, { id: currentUser.id, sessionVersion });
+
+  res.json({ success: true, message: "Password changed" });
 }

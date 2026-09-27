@@ -7,6 +7,17 @@ import { userRepository, type User } from "@/repositories/user";
 
 import type { SessionUser } from "./auth.types";
 
+export interface RequireAuthOptions {
+  /**
+   * Let this route through even while the user's mustChangePassword flag is
+   * set. Only /me and /change-password should ever set this — every other
+   * route must block until the password is changed, so the default (false)
+   * is the safe one: a new route has to opt IN to being reachable mid-forced-
+   * change, rather than opting out.
+   */
+  allowPasswordChange?: boolean;
+}
+
 function toSessionUser(user: User): SessionUser {
   return {
     id: user.id,
@@ -27,41 +38,53 @@ function toSessionUser(user: User): SessionUser {
  * used for the request id (see src/lib/audit/request-id.ts): it sidesteps
  * ambient Express type augmentation entirely, rather than fighting it again.
  *
- * Opt-in per route (`router.get("/me", requireAuth, handler)`), never
- * registered globally in app.ts — public routes like /auth/login must stay
- * reachable without a session.
+ * A factory, not a plain middleware, so each route can decide whether it
+ * should work while the user still has to change their password:
+ *
+ *   router.get("/me", requireAuth({ allowPasswordChange: true }), handler);
+ *   router.get("/flags", requireAuth(), handler); // blocks until it's changed
+ *
+ * Opt-in per route, never registered globally in app.ts — public routes like
+ * /auth/login must stay reachable without a session at all.
  */
-export async function requireAuth(
-  req: Request,
-  res: Response,
-  next: NextFunction,
-): Promise<void> {
-  try {
-    const session = req.session as SessionWithData;
+export function requireAuth(options: RequireAuthOptions = {}) {
+  return async function requireAuthMiddleware(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
+    try {
+      const session = req.session as SessionWithData;
 
-    if (!session.userId) {
-      next(new AppError(ERROR_CODES.UNAUTHENTICATED));
-      return;
+      if (!session.userId) {
+        next(new AppError(ERROR_CODES.UNAUTHENTICATED));
+        return;
+      }
+
+      const user = await userRepository.findById(prisma, session.userId);
+
+      const isValid =
+        user !== null &&
+        user.isActive &&
+        user.sessionVersion === session.sessionVersion;
+
+      if (!isValid) {
+        await destroySession(req);
+        next(new AppError(ERROR_CODES.SESSION_EXPIRED));
+        return;
+      }
+
+      if (user.mustChangePassword && !options.allowPasswordChange) {
+        next(new AppError(ERROR_CODES.PASSWORD_CHANGE_REQUIRED));
+        return;
+      }
+
+      res.locals.currentUser = toSessionUser(user);
+      next();
+    } catch (error) {
+      next(error);
     }
-
-    const user = await userRepository.findById(prisma, session.userId);
-
-    const isValid =
-      user !== null &&
-      user.isActive &&
-      user.sessionVersion === session.sessionVersion;
-
-    if (!isValid) {
-      await destroySession(req);
-      next(new AppError(ERROR_CODES.SESSION_EXPIRED));
-      return;
-    }
-
-    res.locals.currentUser = toSessionUser(user);
-    next();
-  } catch (error) {
-    next(error);
-  }
+  };
 }
 
 /** Reads the user attached by requireAuth. Only call this on a route that has
