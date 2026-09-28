@@ -1,6 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 
@@ -8,6 +9,7 @@ import { Button, Field, FormError } from "@/shared/components";
 import { getErrorMessage } from "@/shared/lib";
 import { setAuthenticated } from "@/shared/lib/auth";
 
+import { getDefaultRoute } from "../auth.constants";
 import { authService } from "../auth.service";
 import { loginSchema } from "../auth.validator";
 import type { LoginInput } from "../auth.types";
@@ -20,6 +22,7 @@ import type { LoginInput } from "../auth.types";
  * password) is shown inline per field, via zod + react-hook-form.
  */
 export function LoginForm() {
+  const router = useRouter();
   const [formError, setFormError] = useState<string | null>(null);
 
   const {
@@ -36,6 +39,7 @@ export function LoginForm() {
 
       if (data.success) {
         setAuthenticated(data.data);
+        router.replace(getDefaultRoute(data.data.type));
       }
     } catch (error) {
       setFormError(getErrorMessage(error));
