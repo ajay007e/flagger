@@ -1,11 +1,24 @@
-import { Boxes, FolderKanban, Globe, ScrollText, Users } from "lucide-react";
+import {
+  Boxes,
+  FolderKanban,
+  Globe,
+  LayoutDashboard,
+  ScrollText,
+  Users,
+} from "lucide-react";
 
-import type { AdminNavItem } from "./admin.types";
+import type { SidebarItem } from "@/shared/components";
 
 export const ADMIN_HOME_HREF = "/admin";
-export const FLAGGER_HOME_HREF = "/";
 
-export const ADMIN_NAV_ITEMS: readonly AdminNavItem[] = [
+/** The admin area's sidebar. The sidebar itself is shared; this is only its content. */
+export const ADMIN_NAV_ITEMS: readonly SidebarItem[] = [
+  {
+    label: "Dashboard",
+    href: ADMIN_HOME_HREF,
+    icon: LayoutDashboard,
+    exact: true,
+  },
   { label: "Users", href: "/admin/users", icon: Users },
   { label: "Projects", href: "/admin/projects", icon: FolderKanban },
   { label: "Entities", href: "/admin/entities", icon: Boxes },
