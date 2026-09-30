@@ -65,7 +65,7 @@ export function Popover({
   }, [open, onClose]);
 
   return (
-    <div ref={containerRef} className="relative inline-block">
+    <div ref={containerRef} className="relative w-full inline-block">
       {trigger}
 
       {open ? (

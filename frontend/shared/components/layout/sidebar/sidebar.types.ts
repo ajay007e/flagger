@@ -11,8 +11,6 @@ export interface SidebarItem {
 
 export interface SidebarProps {
   items: readonly SidebarItem[];
-  /** Pinned to the bottom, visually separate: the link to the other area. */
-  footerItem?: SidebarItem;
   /** Called when a link is followed — the mobile drawer uses it to close itself. */
   onNavigate?: () => void;
   className?: string;

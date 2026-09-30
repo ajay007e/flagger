@@ -10,6 +10,7 @@ import {
 import type { SidebarItem } from "@/shared/components";
 
 export const ADMIN_HOME_HREF = "/admin";
+export const FLAGGER_HOME_HREF = "/";
 
 /** The admin area's sidebar. The sidebar itself is shared; this is only its content. */
 export const ADMIN_NAV_ITEMS: readonly SidebarItem[] = [

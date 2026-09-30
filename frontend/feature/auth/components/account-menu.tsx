@@ -1,35 +1,52 @@
 "use client";
 
-import { LogOut, Settings, UserRound } from "lucide-react";
+import { Flag, LogOut, Settings, Shield, UserRound } from "lucide-react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useState } from "react";
 
+import { SettingsModal } from "@/feature/settings";
 import { Avatar, Button, ConfirmDialog, Popover } from "@/shared/components";
 import { useAuth } from "@/shared/lib/auth";
 
 import { useLogout } from "../auth.hook";
 
 const MENU_ITEM_CLASS =
-  "flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-foreground hover:bg-background disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent";
+  "flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm hover:bg-background disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent cursor-pointer";
+
+// Duplicated from feature/admin's ADMIN_HOME_HREF on purpose: features don't
+// import each other, and this is one literal, not worth a shared module for.
+const ADMIN_HOME_HREF = "/admin";
+
+function isOnAdminArea(pathname: string): boolean {
+  return (
+    pathname === ADMIN_HOME_HREF || pathname.startsWith(`${ADMIN_HOME_HREF}/`)
+  );
+}
 
 /**
  * The avatar-and-name trigger at the bottom of the sidebar, plus its account
  * popover: user info, "View profile" (placeholder — no destination screen
- * exists yet), Settings (theme and API status live there), and Logout, which
- * opens a confirmation before it does anything. side="top" + mobileSidebar=
- * false: the trigger already lives inside the sidebar/drawer, so this opens
- * upward as a small anchored panel at every screen size, not a second
- * stacked mobile sidebar.
+ * exists yet), Settings (opens SettingsModal), the admin/Flagger area switch
+ * (admins only — this is the one place it lives, not the sidebar), and
+ * Logout, which opens a confirmation before it does anything. side="top" +
+ * mobileSidebar=false: the trigger already lives inside the sidebar/drawer,
+ * so this opens upward as a small anchored panel at every screen size, not a
+ * second stacked mobile sidebar.
  */
 export function AccountMenu() {
   const { user } = useAuth();
+  const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const { logout, loading } = useLogout();
 
   if (!user) {
     return null;
   }
+
+  const onAdminArea = isOnAdminArea(pathname);
 
   async function handleConfirmLogout() {
     await logout();
@@ -71,14 +88,32 @@ export function AccountMenu() {
 
         <div className="my-1 border-t border-border" />
 
-        <Link
-          href="/settings"
-          onClick={() => setMenuOpen(false)}
+        <button
+          type="button"
+          onClick={() => {
+            setSettingsOpen(true);
+            setMenuOpen(false);
+          }}
           className={MENU_ITEM_CLASS}
         >
           <Settings className="h-4 w-4" aria-hidden="true" />
           Settings
-        </Link>
+        </button>
+
+        {user.type === "admin" ? (
+          <Link
+            href={onAdminArea ? "/" : ADMIN_HOME_HREF}
+            onClick={() => setMenuOpen(false)}
+            className={MENU_ITEM_CLASS}
+          >
+            {onAdminArea ? (
+              <Flag className="h-4 w-4" aria-hidden="true" />
+            ) : (
+              <Shield className="h-4 w-4" aria-hidden="true" />
+            )}
+            {onAdminArea ? "Back to Flagger" : "Go to Admin"}
+          </Link>
+        ) : null}
 
         <button
           type="button"
@@ -89,6 +124,11 @@ export function AccountMenu() {
           Log out
         </button>
       </Popover>
+
+      <SettingsModal
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+      />
 
       <ConfirmDialog
         open={confirmOpen}
