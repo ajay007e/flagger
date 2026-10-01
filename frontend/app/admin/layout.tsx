@@ -9,7 +9,9 @@ import { useAuth } from "@/shared/lib/auth";
 
 /**
  * Guards every /admin/* route: non-admins are sent back to their own default
- * route rather than shown a not-found page. AuthGate (root layout) already
+ * route rather than shown a not-found page. Navigation chrome (navbar,
+ * sidebar) is not this layout's concern — the root AppShell already renders
+ * the admin sidebar for admins on /admin/* paths. AuthGate (root layout)
  * covers "no session" / "must change password" — by the time this runs,
  * status is either "authenticated" or still resolving, never the other two.
  */

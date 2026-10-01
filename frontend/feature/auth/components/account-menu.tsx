@@ -1,32 +1,54 @@
 "use client";
 
-import { LayoutDashboard, LogOut, Settings, UserRound } from "lucide-react";
+import { Flag, LogOut, Settings, Shield, UserRound } from "lucide-react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useState } from "react";
 
 import { Avatar, Button, ConfirmDialog, Popover } from "@/shared/components";
 import { useAuth } from "@/shared/lib/auth";
 
 import { useLogout } from "../auth.hook";
+import { ProfileModal } from "./profile-modal";
+import { SettingsModal } from "./settings-modal";
 
 const MENU_ITEM_CLASS =
   "flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm hover:bg-background disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent cursor-pointer";
 
+// Duplicated from feature/admin's ADMIN_HOME_HREF on purpose: features don't
+// import each other, and this is one literal, not worth a shared module for.
+const ADMIN_HOME_HREF = "/admin";
+
+function isOnAdminArea(pathname: string): boolean {
+  return (
+    pathname === ADMIN_HOME_HREF || pathname.startsWith(`${ADMIN_HOME_HREF}/`)
+  );
+}
+
 /**
- * The avatar trigger in the navbar, plus its account popover: user info,
- * "View profile" and "Settings" (placeholders — no destination screen exists
- * yet), an admin-only "Switch to Admin area" placeholder (no admin area
- * exists yet either), and Logout, which opens a confirmation before it does
- * anything.
+ * The avatar-and-name trigger at the bottom of the sidebar, plus its account
+ * popover: user info, "View profile" (opens ProfileModal), Settings (opens
+ * SettingsModal), the admin/Flagger area switch (admins only — this is the
+ * one place it lives, not the sidebar), and Logout, which opens a
+ * confirmation before it does anything. side="top" +
+ * mobileSidebar=false: the trigger already lives inside the sidebar/drawer,
+ * so this opens upward as a small anchored panel at every screen size, not a
+ * second stacked mobile sidebar.
  */
 export function AccountMenu() {
   const { user } = useAuth();
+  const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const { logout, loading } = useLogout();
 
   if (!user) {
     return null;
   }
+
+  const onAdminArea = isOnAdminArea(pathname);
 
   async function handleConfirmLogout() {
     await logout();
@@ -37,18 +59,22 @@ export function AccountMenu() {
   return (
     <>
       <Popover
-        align="end"
+        align="start"
+        side="top"
+        mobileSidebar={false}
         open={menuOpen}
         onClose={() => setMenuOpen(false)}
         trigger={
           <Button
             variant="ghost"
-            size="icon"
             aria-label={`Account menu, ${user.name}`}
             onClick={() => setMenuOpen((open) => !open)}
-            className="h-9 w-9 rounded-full p-0"
+            className="w-full justify-start gap-2 px-2"
           >
             <Avatar name={user.name} size="sm" />
+            <span className="min-w-0 truncate text-sm font-medium">
+              {user.name}
+            </span>
           </Button>
         }
       >
@@ -59,36 +85,63 @@ export function AccountMenu() {
           </span>
         </div>
 
-        <button type="button" disabled className={MENU_ITEM_CLASS}>
+        <button
+          type="button"
+          onClick={() => {
+            setProfileOpen(true);
+            setMenuOpen(false);
+          }}
+          className={MENU_ITEM_CLASS}
+        >
           <UserRound className="h-4 w-4" aria-hidden="true" />
-          Profile
-        </button>
-
-        <div className="my-1 border-t border-border" />
-
-        {user.type === "admin" ? (
-          <button type="button" disabled className={MENU_ITEM_CLASS}>
-            <LayoutDashboard className="h-4 w-4" aria-hidden="true" />
-            Switch to Admin View
-          </button>
-        ) : null}
-
-        <button type="button" disabled className={MENU_ITEM_CLASS}>
-          <Settings className="h-4 w-4" aria-hidden="true" />
-          Settings
+          View profile
         </button>
 
         <div className="my-1 border-t border-border" />
 
         <button
           type="button"
-          onClick={() => setConfirmOpen(true)}
-          className={`${MENU_ITEM_CLASS} hover:bg-danger/10 text-danger`}
+          onClick={() => {
+            setSettingsOpen(true);
+            setMenuOpen(false);
+          }}
+          className={MENU_ITEM_CLASS}
         >
-          <LogOut className="h-4 w-4 text-danger" aria-hidden="true" />
+          <Settings className="h-4 w-4" aria-hidden="true" />
+          Settings
+        </button>
+
+        {user.type === "admin" ? (
+          <Link
+            href={onAdminArea ? "/" : ADMIN_HOME_HREF}
+            onClick={() => setMenuOpen(false)}
+            className={MENU_ITEM_CLASS}
+          >
+            {onAdminArea ? (
+              <Flag className="h-4 w-4" aria-hidden="true" />
+            ) : (
+              <Shield className="h-4 w-4" aria-hidden="true" />
+            )}
+            {onAdminArea ? "Back to Flagger" : "Go to Admin"}
+          </Link>
+        ) : null}
+
+        <button
+          type="button"
+          onClick={() => setConfirmOpen(true)}
+          className={`${MENU_ITEM_CLASS} text-danger hover:bg-danger/10`}
+        >
+          <LogOut className="h-4 w-4" aria-hidden="true" />
           Log out
         </button>
       </Popover>
+
+      <ProfileModal open={profileOpen} onClose={() => setProfileOpen(false)} />
+
+      <SettingsModal
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+      />
 
       <ConfirmDialog
         open={confirmOpen}

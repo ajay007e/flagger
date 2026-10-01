@@ -1,12 +1,11 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
-import { AccountMenu, AuthGate } from "@/feature/auth";
-import { ApiStatus } from "@/feature/health";
-import { Footer, Navbar, Toaster } from "@/shared/components";
+import { Toaster } from "@/shared/components";
 import { APP_NAME } from "@/shared/config";
 import { ThemeProvider, ThemeScript } from "@/shared/theme";
 
+import { AppShell } from "./_components/app-shell";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -22,12 +21,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       </head>
       <body className="flex min-h-dvh flex-col bg-background text-foreground antialiased">
         <ThemeProvider>
-          <Navbar>
-            <ApiStatus />
-            <AccountMenu />
-          </Navbar>
-          <AuthGate>{children}</AuthGate>
-          <Footer />
+          <AppShell>{children}</AppShell>
           <Toaster />
         </ThemeProvider>
       </body>
