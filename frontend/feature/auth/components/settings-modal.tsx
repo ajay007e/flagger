@@ -1,7 +1,7 @@
 "use client";
 
 import { ApiStatus } from "@/feature/health";
-import { Modal } from "@/shared/components/ui/modal/modal";
+import { Modal } from "@/shared/components/ui";
 import { ThemeSwitcher } from "@/shared/theme";
 
 interface SettingsModalProps {

@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 
-import { Button, Field, FormError } from "@/shared/components";
+import { Button, Field, FormError, toast } from "@/shared/components";
 import { getErrorMessage } from "@/shared/lib";
 import { setAuthenticated, useAuth } from "@/shared/lib/auth";
 
@@ -12,12 +12,21 @@ import { authService } from "../auth.service";
 import { changePasswordSchema } from "../auth.validator";
 import type { ChangePasswordInput } from "../auth.types";
 
+interface ChangePasswordFormProps {
+  /** Called after a successful change (e.g. so the dismissible/voluntary
+   * modal can close itself). Not called by the forced flow, which has no
+   * "close" concept — it closes on its own once mustChangePassword flips. */
+  onSuccess?: () => void;
+}
+
 /**
  * Same pattern as LoginForm: a wrong current password or a server error is a
  * form-level FormError banner, never a toast; invalid input (too short, same
- * as the current password) is inline per field via zod.
+ * as the current password) is inline per field via zod. Success is the one
+ * exception to "no toast" — it's genuinely incidental feedback here, not the
+ * direct result the user is staring at, since the modal is about to close.
  */
-export function ChangePasswordForm() {
+export function ChangePasswordForm({ onSuccess }: ChangePasswordFormProps) {
   const { user } = useAuth();
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -40,6 +49,9 @@ export function ChangePasswordForm() {
       if (user) {
         setAuthenticated({ ...user, mustChangePassword: false });
       }
+
+      toast.success("Password changed successfully");
+      onSuccess?.();
     } catch (error) {
       setFormError(getErrorMessage(error));
     }

@@ -5,11 +5,12 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 
-import { SettingsModal } from "@/feature/settings";
 import { Avatar, Button, ConfirmDialog, Popover } from "@/shared/components";
 import { useAuth } from "@/shared/lib/auth";
 
 import { useLogout } from "../auth.hook";
+import { ProfileModal } from "./profile-modal";
+import { SettingsModal } from "./settings-modal";
 
 const MENU_ITEM_CLASS =
   "flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm hover:bg-background disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent cursor-pointer";
@@ -26,10 +27,10 @@ function isOnAdminArea(pathname: string): boolean {
 
 /**
  * The avatar-and-name trigger at the bottom of the sidebar, plus its account
- * popover: user info, "View profile" (placeholder — no destination screen
- * exists yet), Settings (opens SettingsModal), the admin/Flagger area switch
- * (admins only — this is the one place it lives, not the sidebar), and
- * Logout, which opens a confirmation before it does anything. side="top" +
+ * popover: user info, "View profile" (opens ProfileModal), Settings (opens
+ * SettingsModal), the admin/Flagger area switch (admins only — this is the
+ * one place it lives, not the sidebar), and Logout, which opens a
+ * confirmation before it does anything. side="top" +
  * mobileSidebar=false: the trigger already lives inside the sidebar/drawer,
  * so this opens upward as a small anchored panel at every screen size, not a
  * second stacked mobile sidebar.
@@ -38,6 +39,7 @@ export function AccountMenu() {
   const { user } = useAuth();
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const { logout, loading } = useLogout();
@@ -70,7 +72,9 @@ export function AccountMenu() {
             className="w-full justify-start gap-2 px-2"
           >
             <Avatar name={user.name} size="sm" />
-            <span className="truncate text-sm font-medium">{user.name}</span>
+            <span className="min-w-0 truncate text-sm font-medium">
+              {user.name}
+            </span>
           </Button>
         }
       >
@@ -81,7 +85,14 @@ export function AccountMenu() {
           </span>
         </div>
 
-        <button type="button" disabled className={MENU_ITEM_CLASS}>
+        <button
+          type="button"
+          onClick={() => {
+            setProfileOpen(true);
+            setMenuOpen(false);
+          }}
+          className={MENU_ITEM_CLASS}
+        >
           <UserRound className="h-4 w-4" aria-hidden="true" />
           View profile
         </button>
@@ -124,6 +135,8 @@ export function AccountMenu() {
           Log out
         </button>
       </Popover>
+
+      <ProfileModal open={profileOpen} onClose={() => setProfileOpen(false)} />
 
       <SettingsModal
         open={settingsOpen}
