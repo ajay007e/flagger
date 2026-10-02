@@ -10,6 +10,7 @@ export const ERROR_CODES = {
   NOT_FOUND: "NOT_FOUND",
   VALIDATION_ERROR: "VALIDATION_ERROR",
   CONFLICT: "CONFLICT",
+  FORBIDDEN: "FORBIDDEN",
   INTERNAL_ERROR: "INTERNAL_ERROR",
 } as const;
 
@@ -21,6 +22,7 @@ export const ERROR_STATUS = {
   NOT_FOUND: 404,
   VALIDATION_ERROR: 400,
   CONFLICT: 409,
+  FORBIDDEN: 403,
   INTERNAL_ERROR: 500,
 } as const satisfies Record<keyof typeof ERROR_CODES, number>;
 
@@ -32,5 +34,6 @@ export const DEFAULT_ERROR_MESSAGES = {
   NOT_FOUND: "Resource not found",
   VALIDATION_ERROR: "Invalid request",
   CONFLICT: "Already exists",
+  FORBIDDEN: "You do not have permission to do this",
   INTERNAL_ERROR: "Something went wrong",
 } as const satisfies Record<keyof typeof ERROR_CODES, string>;

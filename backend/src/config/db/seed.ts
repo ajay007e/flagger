@@ -1,5 +1,5 @@
 import { disconnectDatabase, prisma } from "./client";
-import { DEFAULT_SYSTEM_SETTINGS } from "../constants";
+import { DEFAULT_ENVIRONMENTS, DEFAULT_SYSTEM_SETTINGS } from "../constants";
 
 // Safe to run repeatedly: existing rows are never overwritten (update is empty),
 // so values changed later through the app are kept.
@@ -13,6 +13,16 @@ async function main(): Promise<void> {
   }
 
   console.log(`Seeded ${DEFAULT_SYSTEM_SETTINGS.length} system setting(s).`);
+
+  for (const environment of DEFAULT_ENVIRONMENTS) {
+    await prisma.environment.upsert({
+      where: { key: environment.key },
+      update: {},
+      create: environment,
+    });
+  }
+
+  console.log(`Seeded ${DEFAULT_ENVIRONMENTS.length} environment(s).`);
 }
 
 main()

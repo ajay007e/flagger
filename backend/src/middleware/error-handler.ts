@@ -75,6 +75,16 @@ export function errorHandler(
 
   const clientError = getClientError(error);
 
+  if (isUniqueViolation(error)) {
+    sendError(
+      res,
+      ERROR_STATUS.CONFLICT,
+      ERROR_CODES.CONFLICT,
+      DEFAULT_ERROR_MESSAGES.CONFLICT,
+    );
+    return;
+  }
+
   if (clientError) {
     sendError(
       res,
@@ -93,5 +103,13 @@ export function errorHandler(
     ERROR_STATUS.INTERNAL_ERROR,
     ERROR_CODES.INTERNAL_ERROR,
     DEFAULT_ERROR_MESSAGES.INTERNAL_ERROR,
+  );
+}
+
+function isUniqueViolation(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    (error as { code?: unknown }).code === "P2002"
   );
 }

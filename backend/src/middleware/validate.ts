@@ -1,4 +1,4 @@
-import type { RequestHandler } from "express";
+import type { NextFunction, RequestHandler } from "express";
 import type { ZodType } from "zod";
 
 import { AppError, ERROR_CODES } from "@/lib";
@@ -39,6 +39,33 @@ export function validateBody(schema: ZodType): RequestHandler {
     }
 
     req.body = result.data;
+    next();
+  };
+}
+
+function fail(next: NextFunction, issues: ReadonlyArray<Issue>): void {
+  next(new AppError(ERROR_CODES.VALIDATION_ERROR, formatIssues(issues)));
+}
+
+/** Validates req.params. Values stay strings; this only checks them. */
+export function validateParams(schema: ZodType): RequestHandler {
+  return (req, _res, next) => {
+    const result = schema.safeParse(req.params);
+
+    if (!result.success) return fail(next, result.error.issues);
+
+    next();
+  };
+}
+
+/** Validates req.query and replaces it with the parsed value. */
+export function validateQuery(schema: ZodType): RequestHandler {
+  return (req, _res, next) => {
+    const result = schema.safeParse(req.query);
+
+    if (!result.success) return fail(next, result.error.issues);
+
+    req.query = result.data as typeof req.query;
     next();
   };
 }
