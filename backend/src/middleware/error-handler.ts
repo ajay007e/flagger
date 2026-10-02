@@ -3,8 +3,12 @@ import type { NextFunction, Request, Response } from "express";
 import {
   AppError,
   DEFAULT_ERROR_MESSAGES,
+  describeError,
+  diagnosis,
   ERROR_CODES,
   ERROR_STATUS,
+  isCriticalError,
+  RETRY_AFTER_SECONDS,
   type ErrorCode,
   type ErrorResponse,
 } from "@/lib";
@@ -65,11 +69,26 @@ export function errorHandler(
   }
 
   if (error instanceof AppError) {
-    if (error.status >= 500) {
+    // The guard's 503 fires on every request while DOWN; don't flood the log.
+    if (error.status >= 500 && error.code !== ERROR_CODES.SERVICE_UNAVAILABLE) {
       logError(req, error);
     }
 
     sendError(res, error.status, error.code, error.message);
+    return;
+  }
+
+  // Infrastructure failure: block the system now, don't wait for the scheduler.
+  if (isCriticalError(error)) {
+    diagnosis.markDown(`${req.method} ${req.path}: ${describeError(error)}`);
+    logError(req, error);
+    res.set("Retry-After", String(RETRY_AFTER_SECONDS));
+    sendError(
+      res,
+      ERROR_STATUS.SERVICE_UNAVAILABLE,
+      ERROR_CODES.SERVICE_UNAVAILABLE,
+      DEFAULT_ERROR_MESSAGES.SERVICE_UNAVAILABLE,
+    );
     return;
   }
 

@@ -4,7 +4,12 @@ import { env } from "@/config";
 
 // One shared client for the whole app. createClient() does not connect on its
 // own; connectRedis() below controls exactly when the first connection happens.
-export const redis = createClient({ url: env.redisUrl });
+// disableOfflineQueue: commands fail immediately (ClientOfflineError) while
+// disconnected instead of queueing forever, so requests return 503 rather than hang.
+export const redis = createClient({
+  url: env.redisUrl,
+  disableOfflineQueue: true,
+});
 
 // Logged, not thrown: the client retries in the background and emits "error"
 // on every failed attempt. An unhandled "error" event would otherwise crash

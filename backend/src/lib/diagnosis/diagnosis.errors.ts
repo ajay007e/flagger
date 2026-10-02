@@ -29,3 +29,8 @@ export function isCriticalError(err: unknown): boolean {
     return true;
   return !!e.name && REDIS_CRITICAL.has(e.name);
 }
+
+export function describeError(err: unknown): string {
+  const e = err as { name?: string; code?: string } | null;
+  return [e?.name, e?.code].filter(Boolean).join(" ") || "unknown error";
+}
