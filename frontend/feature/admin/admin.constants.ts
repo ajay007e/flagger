@@ -22,7 +22,6 @@ export const ADMIN_NAV_ITEMS: readonly SidebarItem[] = [
   },
   { label: "Users", href: "/admin/users", icon: Users },
   { label: "Projects", href: "/admin/projects", icon: FolderKanban },
-  { label: "Entities", href: "/admin/entities", icon: Boxes },
   { label: "Environments", href: "/admin/environments", icon: Globe },
   { label: "Audit", href: "/admin/audit", icon: ScrollText },
 ];
