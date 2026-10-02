@@ -2,7 +2,14 @@ import cors from "cors";
 import express from "express";
 
 import { env } from "@/config";
-import { AppError, ERROR_CODES, requestId, sessionMiddleware } from "@/lib";
+import {
+  AppError,
+  diagnosisGuard,
+  ERROR_CODES,
+  isDiagnosisExempt,
+  requestId,
+  sessionMiddleware,
+} from "@/lib";
 import { errorHandler, notFound } from "@/middleware";
 import { router } from "@/router";
 
@@ -33,8 +40,17 @@ app.use(
   }),
 );
 
+// After cors (so the browser can read the 503), before json/session (so a
+// Redis outage returns 503, not a session error).
+app.use(diagnosisGuard);
+
 app.use(express.json());
-app.use(sessionMiddleware);
+
+// Health and diagnosis are public and must work with Redis down, so they skip
+// the session store (a request carrying a cookie would otherwise hit Redis).
+app.use((req, res, next) =>
+  isDiagnosisExempt(req.path) ? next() : sessionMiddleware(req, res, next),
+);
 
 app.get("/", (_req, res) => {
   res.json({

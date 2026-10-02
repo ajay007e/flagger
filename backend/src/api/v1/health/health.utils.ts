@@ -1,5 +1,4 @@
-import { prisma } from "@/config/db";
-import { redis } from "@/config/redis";
+import { databaseCheck, redisCheck } from "@/lib/diagnosis";
 
 import { DEPENDENCY_STATUS, HEALTH_CHECK_TIMEOUT_MS } from "./health.constants";
 import type { DependencyStatus } from "./health.types";
@@ -36,9 +35,9 @@ async function toStatus(check: Promise<unknown>): Promise<DependencyStatus> {
 }
 
 export function checkDatabase(): Promise<DependencyStatus> {
-  return toStatus(prisma.$queryRaw`SELECT 1`);
+  return toStatus(databaseCheck.run());
 }
 
 export function checkRedis(): Promise<DependencyStatus> {
-  return toStatus(redis.ping());
+  return toStatus(redisCheck.run());
 }

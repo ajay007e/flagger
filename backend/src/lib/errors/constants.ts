@@ -11,6 +11,7 @@ export const ERROR_CODES = {
   VALIDATION_ERROR: "VALIDATION_ERROR",
   CONFLICT: "CONFLICT",
   FORBIDDEN: "FORBIDDEN",
+  SERVICE_UNAVAILABLE: "SERVICE_UNAVAILABLE",
   INTERNAL_ERROR: "INTERNAL_ERROR",
 } as const;
 
@@ -23,6 +24,7 @@ export const ERROR_STATUS = {
   VALIDATION_ERROR: 400,
   CONFLICT: 409,
   FORBIDDEN: 403,
+  SERVICE_UNAVAILABLE: 503,
   INTERNAL_ERROR: 500,
 } as const satisfies Record<keyof typeof ERROR_CODES, number>;
 
@@ -35,5 +37,6 @@ export const DEFAULT_ERROR_MESSAGES = {
   VALIDATION_ERROR: "Invalid request",
   CONFLICT: "Already exists",
   FORBIDDEN: "You do not have permission to do this",
+  SERVICE_UNAVAILABLE: "Service is temporarily unavailable.",
   INTERNAL_ERROR: "Something went wrong",
 } as const satisfies Record<keyof typeof ERROR_CODES, string>;
