@@ -1,0 +1,4 @@
+export const ENVIRONMENT_KEY_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+export const ENVIRONMENT_KEY_MAX_LENGTH = 50;
+export const ENVIRONMENT_NAME_MAX_LENGTH = 100;
+export const ENVIRONMENT_DESCRIPTION_MAX_LENGTH = 500;

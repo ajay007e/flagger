@@ -1,5 +1,5 @@
-import { AdminPlaceholder } from "@/feature/admin";
+import { EnvironmentsScreen } from "@/feature/environments";
 
 export default function AdminEnvironmentsPage() {
-  return <AdminPlaceholder title="Environments" />;
+  return <EnvironmentsScreen />;
 }
