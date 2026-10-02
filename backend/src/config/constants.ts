@@ -9,3 +9,8 @@ export const PLACEHOLDER_PREFIX = "change-me";
 
 /** Applied by the seed script only when the key does not exist yet. */
 export const DEFAULT_SYSTEM_SETTINGS = [{ key: "name", value: "Flagger" }];
+export const DEFAULT_ENVIRONMENTS = [
+  { key: "dev", name: "Development", sortOrder: 0 },
+  { key: "staging", name: "Staging", sortOrder: 1 },
+  { key: "production", name: "Production", sortOrder: 2 },
+];

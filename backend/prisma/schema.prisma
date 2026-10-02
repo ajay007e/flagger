@@ -64,6 +64,7 @@ model User {
   updatedUsers  User[] @relation("UserUpdatedBy")
 
   updatedSystemSettings SystemSetting[] @relation("SystemSettingUpdatedBy")
+  updatedEnvironments   Environment[]   @relation("EnvironmentUpdatedBy")
 
   @@map("users")
 }
@@ -129,4 +130,25 @@ model AuditLog {
   @@index([actorType, actorId, action, createdAt])
   @@index([projectId, createdAt])
   @@map("audit_logs")
+}
+
+// Global (not per project). `key` is immutable after creation and stays
+// reserved after soft delete: the unique index covers deleted rows too.
+model Environment {
+  id Int @id @default(autoincrement()) @db.UnsignedInt
+
+  key         String  @unique @db.VarChar(50)
+  name        String  @db.VarChar(100)
+  description String? @db.VarChar(500)
+  sortOrder   Int     @default(0) @map("sort_order")
+
+  updatedBy Int?      @map("updated_by") @db.UnsignedInt
+  createdAt DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt DateTime  @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  deletedAt DateTime? @map("deleted_at") @db.DateTime(3)
+
+  updatedByUser User? @relation("EnvironmentUpdatedBy", fields: [updatedBy], references: [id], onDelete: Restrict)
+
+  @@index([sortOrder])
+  @@map("environments")
 }

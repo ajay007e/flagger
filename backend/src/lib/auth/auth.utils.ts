@@ -87,6 +87,19 @@ export function requireAuth(options: RequireAuthOptions = {}) {
   };
 }
 
+export function requireAdmin(
+  _req: Request,
+  res: Response,
+  next: NextFunction,
+): void {
+  if (getCurrentUser(res).type !== "admin") {
+    next(new AppError(ERROR_CODES.FORBIDDEN));
+    return;
+  }
+
+  next();
+}
+
 /** Reads the user attached by requireAuth. Only call this on a route that has
  * requireAuth in its middleware chain — it throws otherwise, on purpose,
  * since silently returning null would be an easy-to-miss bug at the call site. */
