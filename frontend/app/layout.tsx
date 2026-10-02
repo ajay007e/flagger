@@ -7,6 +7,7 @@ import { ThemeProvider, ThemeScript } from "@/shared/theme";
 
 import { AppShell } from "./_components/app-shell";
 import "./globals.css";
+import { DiagnosisGate } from "@/feature/diagnosis/components/diagnosis-gate";
 
 export const metadata: Metadata = {
   title: APP_NAME,
@@ -21,7 +22,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       </head>
       <body className="flex min-h-dvh flex-col bg-background text-foreground antialiased">
         <ThemeProvider>
-          <AppShell>{children}</AppShell>
+          <DiagnosisGate>
+            <AppShell>{children}</AppShell>
+          </DiagnosisGate>
           <Toaster />
         </ThemeProvider>
       </body>

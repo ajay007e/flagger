@@ -1,6 +1,7 @@
 import { app } from "@/app";
-import { connectDatabase, connectRedis, env } from "@/config";
+import { connectDatabase, connectRedis, env, redis } from "@/config";
 import {
+  describeError,
   diagnosis,
   isCriticalError,
   registerDefaultHealthChecks,
@@ -12,6 +13,14 @@ import {
 
 registerDefaultHealthChecks();
 registerDiagnosisAudit();
+
+// Instant detection: block the system as soon as the Redis client reports
+// trouble, without waiting for a request or the next scheduler cycle.
+// These only ever mark DOWN. Recovery stays with the scheduler.
+redis.on("error", (error) =>
+  diagnosis.markDown(`redis: ${describeError(error)}`),
+);
+redis.on("end", () => diagnosis.markDown("redis: connection closed"));
 
 // A stray rejection only trips DOWN if it is an infrastructure failure.
 // uncaughtException is left to Node's default (crash and restart as DOWN).
