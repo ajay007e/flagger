@@ -1,5 +1,5 @@
-import { AdminPlaceholder } from "@/feature/admin";
+import { ProjectsScreen } from "@/feature/projects";
 
 export default function AdminProjectsPage() {
-  return <AdminPlaceholder title="Projects" />;
+  return <ProjectsScreen />;
 }
