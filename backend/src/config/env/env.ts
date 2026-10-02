@@ -68,6 +68,9 @@ const envSchema = z
     SESSION_SECRET: secret,
     SETUP_API_KEY: secret,
     ALLOWED_ORIGINS: originList,
+    // Local fallback file for audit events buffered while DB and Redis are both down.
+    // In Docker, point this at a mounted volume or it is lost with the container.
+    AUDIT_SPOOL_PATH: z.string().min(1).default("var/audit-spool.jsonl"),
   })
   .superRefine((values, ctx) => {
     if (values.NODE_ENV !== "production") {
@@ -126,6 +129,7 @@ function loadEnv() {
     sessionSecret: values.SESSION_SECRET,
     setupApiKey: values.SETUP_API_KEY,
     allowedOrigins: values.ALLOWED_ORIGINS,
+    auditSpoolPath: values.AUDIT_SPOOL_PATH,
   });
 }
 

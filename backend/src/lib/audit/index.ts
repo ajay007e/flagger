@@ -10,3 +10,10 @@ export type {
   WriteAuditLogInput,
 } from "./types";
 export { writeAuditLog } from "./writer";
+export {
+  drainAuditEvents,
+  recordAuditEvent,
+  startAuditDrain,
+} from "./fallback";
+export { registerDiagnosisAudit } from "./diagnosis";
+export type { PendingAuditEvent } from "./types";

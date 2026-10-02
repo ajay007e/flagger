@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import { OUTCOMES } from "./constants";
 import { sanitizeAuditValue } from "./sanitize";
 import type { AuditClient, WriteAuditLogInput } from "./types";
@@ -29,6 +31,8 @@ export async function writeAuditLog(
 ): Promise<void> {
   await client.auditLog.create({
     data: {
+      eventId: input.eventId ?? randomUUID(),
+      createdAt: input.occurredAt,
       actorType: input.actorType,
       actorId: input.actorId ?? null,
       action: input.action,

@@ -29,3 +29,11 @@ export const REDACTED_VALUE = "[redacted]";
 
 /** Name of the request header carrying a client-supplied request id, if any. */
 export const REQUEST_ID_HEADER = "x-request-id";
+
+export const AUDIT_PENDING_KEY = "flagger:audit:pending";
+export const AUDIT_PROCESSING_KEY = "flagger:audit:processing";
+export const AUDIT_DEAD_KEY = "flagger:audit:dead";
+export const AUDIT_SPOOL_MAX_BYTES = 5 * 1024 * 1024;
+export const AUDIT_DB_WRITE_TIMEOUT_MS = 3000;
+export const AUDIT_DRAIN_INTERVAL_MS = 30_000;
+export const AUDIT_DRAIN_BATCH = 500;

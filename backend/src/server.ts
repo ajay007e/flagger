@@ -4,11 +4,14 @@ import {
   diagnosis,
   isCriticalError,
   registerDefaultHealthChecks,
+  registerDiagnosisAudit,
   runHealthCycle,
+  startAuditDrain,
   startDiagnosisScheduler,
 } from "@/lib";
 
 registerDefaultHealthChecks();
+registerDiagnosisAudit();
 
 // A stray rejection only trips DOWN if it is an infrastructure failure.
 // uncaughtException is left to Node's default (crash and restart as DOWN).
@@ -28,6 +31,7 @@ app.listen(env.port, () => {
   // Server is up first so it can serve 503 and the status endpoint.
   // Diagnosis boots DOWN; the scheduler owns the move to UP.
   startDiagnosisScheduler();
+  startAuditDrain();
 
   // Connect in the background. A down dependency must not stop the server.
   void Promise.allSettled([
