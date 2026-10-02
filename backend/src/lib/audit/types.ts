@@ -17,6 +17,10 @@ export interface RequestMeta {
 export type AuditClient = PrismaClient | Prisma.TransactionClient;
 
 export interface WriteAuditLogInput {
+  /** Set when the event is buffered, so a replay is idempotent. Generated if omitted. */
+  eventId?: string;
+  /** When it actually happened. Defaults to now. Set when replaying buffered events. */
+  occurredAt?: Date;
   actorType: ActorType;
   /** Id of the acting user or API key. Omit (or null) for "system" and unauthenticated actors. */
   actorId?: number | null;
@@ -34,3 +38,12 @@ export interface WriteAuditLogInput {
   metadata?: unknown;
   request: RequestMeta;
 }
+
+/** JSON-safe form of an event, kept in the Redis list and the local spool file. */
+export type PendingAuditEvent = Omit<
+  WriteAuditLogInput,
+  "eventId" | "occurredAt"
+> & {
+  eventId: string;
+  occurredAt: string;
+};

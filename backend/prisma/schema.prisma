@@ -88,6 +88,10 @@ enum AuditOutcome {
 model AuditLog {
   id BigInt @id @default(autoincrement()) @db.UnsignedBigInt
 
+  // Generated when the event happens, not when it is stored. Makes replay
+  // from the Redis/file buffer idempotent. Null only for rows written before this column.
+  eventId String? @unique @map("event_id") @db.Char(36)
+
   createdAt DateTime @default(now()) @map("created_at") @db.DateTime(3)
 
   actorType AuditActorType @map("actor_type")
