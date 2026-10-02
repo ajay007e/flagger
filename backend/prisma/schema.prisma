@@ -65,6 +65,7 @@ model User {
 
   updatedSystemSettings SystemSetting[] @relation("SystemSettingUpdatedBy")
   updatedEnvironments   Environment[]   @relation("EnvironmentUpdatedBy")
+  updatedProjects       Project[]       @relation("ProjectUpdatedBy")
 
   @@map("users")
 }
@@ -151,4 +152,24 @@ model Environment {
 
   @@index([sortOrder])
   @@map("environments")
+}
+
+// Groups features and scopes access (Epic 4). `key` is immutable after
+// creation and stays reserved after soft delete: the unique index covers
+// deleted rows too.
+model Project {
+  id Int @id @default(autoincrement()) @db.UnsignedInt
+
+  key         String  @unique @db.VarChar(50)
+  name        String  @db.VarChar(100)
+  description String? @db.VarChar(500)
+
+  updatedBy Int?      @map("updated_by") @db.UnsignedInt
+  createdAt DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt DateTime  @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  deletedAt DateTime? @map("deleted_at") @db.DateTime(3)
+
+  updatedByUser User? @relation("ProjectUpdatedBy", fields: [updatedBy], references: [id], onDelete: Restrict)
+
+  @@map("projects")
 }
