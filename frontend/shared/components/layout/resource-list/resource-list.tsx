@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 import { ComponentLoader } from "@/shared/components/feedback";
 import { FormError } from "@/shared/components/form";
 import { Button } from "@/shared/components/ui";
+import { ResourceToolbar } from "./resource-toolbar";
 
 interface ResourceListProps {
   title: string;
@@ -22,6 +23,10 @@ interface ResourceListProps {
   isEmpty: boolean;
   emptyText: string;
   children: ReactNode;
+  /** Rendered in the toolbar's search slot. */
+  search?: ReactNode;
+  /** Rendered in the toolbar's filters slot. */
+  filters?: ReactNode;
 }
 
 /** Header, "show deleted" toggle and loading/error/empty states for an admin list. */
@@ -39,17 +44,19 @@ export function ResourceList({
   isEmpty,
   emptyText,
   children,
+  search,
+  filters,
 }: ResourceListProps) {
   const Heading = level === "page" ? "h1" : "h2";
 
   return (
-    <section className="flex flex-col gap-4">
-      <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <section className="flex flex-col gap-6">
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <Heading
             className={
               level === "page"
-                ? "text-xl font-semibold"
+                ? "text-2xl font-semibold tracking-tight"
                 : "text-lg font-semibold"
             }
           >
@@ -61,7 +68,7 @@ export function ResourceList({
         </div>
 
         <Button
-          className="shrink-0"
+          className="w-full shrink-0 sm:w-auto"
           leftIcon={<Plus className="h-4 w-4" />}
           onClick={onCreate}
         >
@@ -69,18 +76,15 @@ export function ResourceList({
         </Button>
       </header>
 
-      <label className="flex w-fit items-center gap-2 text-sm">
-        <input
-          type="checkbox"
-          className="h-4 w-4"
-          checked={showDeleted}
-          onChange={(event) => onShowDeletedChange(event.target.checked)}
-        />
-        Show deleted
-      </label>
+      <ResourceToolbar
+        showDeleted={showDeleted}
+        onShowDeletedChange={onShowDeletedChange}
+        search={search}
+        filters={filters}
+      />
 
       {error ? (
-        <div className="flex flex-col items-start gap-2">
+        <div className="flex flex-col items-start gap-3">
           <FormError>{error}</FormError>
           <Button variant="outline" size="sm" onClick={onRetry}>
             Retry
@@ -89,11 +93,11 @@ export function ResourceList({
       ) : loading ? (
         <ComponentLoader label="Loading…" />
       ) : isEmpty ? (
-        <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted">
+        <p className="rounded-xl border border-dashed border-border px-6 py-12 text-center text-sm text-muted">
           {emptyText}
         </p>
       ) : (
-        <ul className="flex flex-col gap-2">{children}</ul>
+        <ul className="flex flex-col gap-3">{children}</ul>
       )}
     </section>
   );

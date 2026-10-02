@@ -1,5 +1,4 @@
 import {
-  Boxes,
   FolderKanban,
   Globe,
   LayoutDashboard,

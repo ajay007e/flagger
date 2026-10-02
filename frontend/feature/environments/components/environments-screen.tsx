@@ -84,6 +84,7 @@ export function EnvironmentsScreen() {
               itemKey={env.key}
               description={env.description}
               deleted={deleted}
+              leading={deleted ? "–" : position + 1}
               actions={
                 deleted ? (
                   <Button
@@ -102,24 +103,26 @@ export function EnvironmentsScreen() {
                   </Button>
                 ) : (
                   <>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-label={`Move ${env.name} up`}
-                      disabled={busy || position === 0}
-                      onClick={() => move(env.id, -1)}
-                    >
-                      <ChevronUp className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-label={`Move ${env.name} down`}
-                      disabled={busy || position === activeIds.length - 1}
-                      onClick={() => move(env.id, 1)}
-                    >
-                      <ChevronDown className="h-4 w-4" />
-                    </Button>
+                    <div className="mr-auto flex items-center rounded-lg border border-border sm:mr-2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label={`Move ${env.name} up`}
+                        disabled={busy || position === 0}
+                        onClick={() => move(env.id, -1)}
+                      >
+                        <ChevronUp className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label={`Move ${env.name} down`}
+                        disabled={busy || position === activeIds.length - 1}
+                        onClick={() => move(env.id, 1)}
+                      >
+                        <ChevronDown className="h-4 w-4" />
+                      </Button>
+                    </div>
                     <Button
                       variant="outline"
                       size="sm"
