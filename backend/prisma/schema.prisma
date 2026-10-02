@@ -66,6 +66,7 @@ model User {
   updatedSystemSettings SystemSetting[] @relation("SystemSettingUpdatedBy")
   updatedEnvironments   Environment[]   @relation("EnvironmentUpdatedBy")
   updatedProjects       Project[]       @relation("ProjectUpdatedBy")
+  updatedEntities       Entity[]        @relation("EntityUpdatedBy")
 
   @@map("users")
 }
@@ -171,5 +172,31 @@ model Project {
 
   updatedByUser User? @relation("ProjectUpdatedBy", fields: [updatedBy], references: [id], onDelete: Restrict)
 
+  entities Entity[]
+
   @@map("projects")
+}
+
+// A feature area inside one project. `project_id` and `key` are immutable
+// after creation. The unique index covers deleted rows too, so a deleted key
+// stays reserved within its project.
+model Entity {
+  id Int @id @default(autoincrement()) @db.UnsignedInt
+
+  projectId Int @map("project_id") @db.UnsignedInt
+
+  key         String  @db.VarChar(50)
+  name        String  @db.VarChar(100)
+  description String? @db.VarChar(500)
+
+  updatedBy Int?      @map("updated_by") @db.UnsignedInt
+  createdAt DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt DateTime  @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  deletedAt DateTime? @map("deleted_at") @db.DateTime(3)
+
+  project       Project @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  updatedByUser User?   @relation("EntityUpdatedBy", fields: [updatedBy], references: [id], onDelete: Restrict)
+
+  @@unique([projectId, key])
+  @@map("entities")
 }

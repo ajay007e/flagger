@@ -22,6 +22,8 @@ import {
   updateProjectSchema,
 } from "./projects.validator";
 
+import { entitiesRouter } from "../entities";
+
 export const projectsRouter = Router();
 
 // Admin-only for every route. R6 will relax GET only, once Epic 4 lands.
@@ -53,3 +55,5 @@ projectsRouter.post(
   validateParams(projectParamsSchema),
   asyncHandler(postRestoreProject),
 );
+
+projectsRouter.use("/:projectId/entities", entitiesRouter);
