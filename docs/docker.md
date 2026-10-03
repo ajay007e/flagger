@@ -11,6 +11,8 @@
 
 Both ports are bound to `127.0.0.1` only, so they are not reachable from your network. Both services have healthchecks and use named volumes (`flagger_mysql_data`, `flagger_redis_data`).
 
+After `docker compose restart mysql` (or redis), the backend marks itself `DOWN` and recovers on its own within about 30 s. Redis's append-only mode also keeps the buffered audit events (`flagger:audit:pending`) across a Redis restart. See [diagnosis.md](./diagnosis.md).
+
 ## Commands
 
 Run from the repo root.

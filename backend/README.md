@@ -32,16 +32,17 @@ Full setup steps are in [docs/installation.md](../docs/installation.md).
 
 All variables are validated when the server starts, and it exits with a list of problems if any is missing or invalid.
 
-| Variable              | Purpose                                                   |
-| --------------------- | --------------------------------------------------------- |
-| `NODE_ENV`            | `development`, `test`, or `production`                    |
-| `PORT`                | Port the API listens on (default 4000)                    |
-| `DATABASE_URL`        | MySQL connection                                          |
-| `SHADOW_DATABASE_URL` | Prisma migration shadow database (used by the Prisma CLI) |
-| `REDIS_URL`           | Redis connection                                          |
-| `SESSION_SECRET`      | Signs session cookies, at least 32 characters             |
-| `ALLOWED_ORIGINS`     | Comma-separated frontend origins for CORS                 |
-| `SETUP_API_KEY`       | Key for creating the first admin, at least 32 characters  |
+| Variable              | Purpose                                                               |
+| --------------------- | --------------------------------------------------------------------- |
+| `NODE_ENV`            | `development`, `test`, or `production`                                |
+| `PORT`                | Port the API listens on (default 4000)                                |
+| `DATABASE_URL`        | MySQL connection                                                      |
+| `SHADOW_DATABASE_URL` | Prisma migration shadow database (used by the Prisma CLI)             |
+| `REDIS_URL`           | Redis connection                                                      |
+| `SESSION_SECRET`      | Signs session cookies, at least 32 characters                         |
+| `ALLOWED_ORIGINS`     | Comma-separated frontend origins for CORS                             |
+| `SETUP_API_KEY`       | Key for creating the first admin, at least 32 characters              |
+| `AUDIT_SPOOL_PATH`    | Optional. Local audit fallback file (default `var/audit-spool.jsonl`) |
 
 Details: [docs/configuration.md](../docs/configuration.md).
 
@@ -63,6 +64,7 @@ backend/
     │   └── redis/        # Redis client
     ├── lib/              # Cross-cutting building blocks
     │   ├── audit/        # Append-only audit log: writer, sanitizer, request id
+    │   ├── diagnosis/    # System health (UP/DOWN), scheduler, guard, job wrapper
     │   ├── errors/       # AppError and error codes
     │   └── session/      # express-session + Redis store configuration
     ├── middleware/       # notFound, errorHandler, validateBody, asyncHandler
@@ -74,15 +76,16 @@ backend/
 
 ## Endpoints
 
-| Method | Path                           | Description                                                              |
-| ------ | ------------------------------ | ------------------------------------------------------------------------ |
-| GET    | `/`                            | Basic API info                                                           |
-| GET    | `/api/v1/health`               | Health check: overall status plus MySQL and Redis status                 |
-| POST   | `/api/v1/auth/setup-admin`     | Create the first admin (see below)                                       |
-| POST   | `/api/v1/auth/login`           | Log in with email and password, starts a session                         |
-| GET    | `/api/v1/auth/me`              | Current user (requires a valid session)                                  |
-| POST   | `/api/v1/auth/change-password` | Change your own password; required first if `mustChangePassword` is true |
-| POST   | `/api/v1/auth/logout`          | Ends the current session; succeeds even with none                        |
+| Method | Path                           | Description                                                                      |
+| ------ | ------------------------------ | -------------------------------------------------------------------------------- |
+| GET    | `/`                            | Basic API info                                                                   |
+| GET    | `/api/v1/health`               | Health check: overall status plus MySQL and Redis status                         |
+| GET    | `/api/v1/diagnosis`            | System status (`UP`/`DOWN`), public. While `DOWN`, every other route returns 503 |
+| POST   | `/api/v1/auth/setup-admin`     | Create the first admin (see below)                                               |
+| POST   | `/api/v1/auth/login`           | Log in with email and password, starts a session                                 |
+| GET    | `/api/v1/auth/me`              | Current user (requires a valid session)                                          |
+| POST   | `/api/v1/auth/change-password` | Change your own password; required first if `mustChangePassword` is true         |
+| POST   | `/api/v1/auth/logout`          | Ends the current session; succeeds even with none                                |
 
 Every error response uses the same shape, see [docs/api-errors.md](../docs/api-errors.md).
 
@@ -96,6 +99,8 @@ curl -X POST http://localhost:4000/api/v1/auth/setup-admin \
   -H "x-setup-key: <your SETUP_API_KEY>" \
   -d '{"email": "admin@example.com", "name": "Admin", "password": "a-strong-password"}'
 ```
+
+Diagnosis (how the system blocks itself and recovers) is documented in [docs/diagnosis.md](../docs/diagnosis.md).
 
 Every meaningful action is recorded in an append-only audit log, see [docs/audit.md](../docs/audit.md).
 

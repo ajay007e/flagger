@@ -10,14 +10,17 @@ Every error response has the same shape, so the frontend can rely on it:
 
 ## Codes
 
-| Code                       | Status | When                                                       |
-| -------------------------- | ------ | ---------------------------------------------------------- |
-| `UNAUTHENTICATED`          | 401    | No valid session                                           |
-| `SESSION_EXPIRED`          | 401    | The session is no longer valid                             |
-| `PASSWORD_CHANGE_REQUIRED` | 403    | The user must change a temporary password first            |
-| `NOT_FOUND`                | 404    | Unknown route, or something the user is not allowed to see |
-| `VALIDATION_ERROR`         | 400    | Invalid request body                                       |
-| `INTERNAL_ERROR`           | 500    | Anything unexpected. Details are only in the server log.   |
+| Code                       | Status | When                                                                                       |
+| -------------------------- | ------ | ------------------------------------------------------------------------------------------ |
+| `UNAUTHENTICATED`          | 401    | No valid session                                                                           |
+| `SESSION_EXPIRED`          | 401    | The session is no longer valid                                                             |
+| `PASSWORD_CHANGE_REQUIRED` | 403    | The user must change a temporary password first                                            |
+| `NOT_FOUND`                | 404    | Unknown route, or something the user is not allowed to see                                 |
+| `VALIDATION_ERROR`         | 400    | Invalid request body                                                                       |
+| `CONFLICT`                 | 409    | The resource already exists (e.g. an email already in use)                                 |
+| `FORBIDDEN`                | 403    | The user is signed in but may not do this                                                  |
+| `SERVICE_UNAVAILABLE`      | 503    | The system is `DOWN`. Sent with a `Retry-After` header. See [diagnosis.md](./diagnosis.md) |
+| `INTERNAL_ERROR`           | 500    | Anything unexpected. Details are only in the server log.                                   |
 
 Things a user is not allowed to see return `NOT_FOUND` (not "forbidden"), so the API does not reveal that they exist.
 
@@ -76,7 +79,7 @@ If the server cannot be reached at all, `getErrorMessage` returns "Unable to rea
 ## Adding a code
 
 1. Add it to `backend/src/errors/constants.ts` (code, default status, default message).
-2. Add it to `frontend/shared/constants.ts`.
+2. Add it to `frontend/shared/constants/error.ts`.
 3. Add a row to the table above.
 
 The two lists have to be kept in sync by hand.

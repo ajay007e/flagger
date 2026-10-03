@@ -7,7 +7,7 @@ Flagger is a full-stack feature flag system (backend + frontend) with extra feat
 - Granular permissions (Epic 4: roles and access scoping)
 - Admin and normal user areas
 - Rule engine (flag targeting and evaluation rules)
-- Diagnosis service
+- Diagnosis service (built, see `docs/diagnosis.md`)
 - Approval flow with multi-eye (multiple approver) sign-off
 
 ## Stack
@@ -20,7 +20,7 @@ Flagger is a full-stack feature flag system (backend + frontend) with extra feat
 
 - `src/api/v1/<resource>/`: `.router`, `.controller`, `.service`, `.validator`, `.types`, `.constants`, `.utils`, exported via `index.ts`
 - `src/repositories/<model>/`: all data access (Prisma lives here)
-- `src/lib/`: cross-cutting code: `auth` (`requireAuth`, `requireAdmin`), `session`, `errors` (AppError), `audit`
+- `src/lib/`: cross-cutting code: `auth` (`requireAuth`, `requireAdmin`), `session`, `errors` (AppError), `audit` (writer plus the outage fallback), `diagnosis` (system health state, scheduler, guard)
 - `src/middleware/`: `async-handler`, `validate` (`validateBody`, `validateParams`, `validateQuery`), `error-handler` (maps Prisma `P2002` to 409), `not-found`
 - `src/config/`: env, db, redis
 - Models: `User`, `SystemSetting`, `AuditLog`, `Environment`, `Project`, `Entity` (`prisma/schema.prisma`)
@@ -30,6 +30,7 @@ Flagger is a full-stack feature flag system (backend + frontend) with extra feat
 
 - `app/`: routes and layouts only (`/admin/*` is guarded; the admin layout also sets page padding and max width)
 - `feature/<name>/`: domain logic + components (`.service`, `.hook`, `.validator`, `.types`, `.constants`, `components/`, exported via `index.ts`)
+- `feature/diagnosis/` + `shared/lib/diagnosis/`: `DiagnosisGate` wraps the app shell. The store is in `shared/lib` because `api.ts` flips it.
 - `shared/components/{ui,layout,form,feedback}/`: reusable primitives (Button, Field, Modal, Popover, Avatar, Badge, ConfirmDialog, Toast, Loader, Sidebar)
 - `shared/components/layout/resource-list/`: the admin list kit. `ResourceList` (header, loading/error/empty states), `ResourceToolbar` (show-deleted toggle, plus `search` and `filters` slots) and `ResourceRow` (card row, stacks on mobile).
 - `shared/{lib,hooks,config,theme}/`: API client, `api-query.hook` (read on mount), `use-action.hook` (one-off mutations: busy state, error toast, optional success toast, then refetch), env, theming
@@ -53,6 +54,10 @@ Flagger is a full-stack feature flag system (backend + frontend) with extra feat
 - **Entities are nested** under their project (`/projects/:projectId/entities`). Every entity route needs an active parent project (404 otherwise). Soft-deleting a project does not cascade to its entities. In the UI, entities are managed on the project's page, not as a top-level admin screen.
 - **Catalog list endpoints are admin-only for now.** R6 (non-admins see only what they can access) waits for Epic 4. Each service has a documented hook where the access filter goes, and only the GET guard gets relaxed.
 - **Audit rows carry scope ids**: `project.*` sets `projectId`, `entity.*` sets `projectId` and `entityId`, `environment.*` sets `environmentId`. Environment reorder writes one `environment.updated` row per environment that moved.
+- **Diagnosis owns system health, the scheduler owns recovery, the frontend only reflects it.** The system boots `DOWN` and any critical error marks it `DOWN` at once. Only one fully clean scheduler cycle moves it back to `UP`; a successful request never does. While `DOWN`, the guard returns 503 and `guardedJob` skips background work.
+- **Status is per instance, in memory.** A Redis-backed status would be unreadable when Redis is down.
+- **Audit events that must survive an outage use `recordAuditEvent`** (DB, then a Redis list, then a local spool file) and are replayed after recovery. Each carries a unique `eventId` and its original timestamp.
+- **The server starts with dependencies down.** DB and Redis connect in the background, and a failed connect is logged, not fatal.
 - **Environment order** is set with `PUT /environments/order`, which takes every active id exactly once and returns the full active list. The UI uses up/down buttons (no drag-and-drop dependency, works on mobile and by keyboard).
 - **Form errors:** invalid input shows inline per field (client zod schema mirrors the server). A `CONFLICT` response is shown on the key field. Any other failure is a form-level `FormError` banner. Delete, restore and reorder failures are toasts via `useAction`.
 
@@ -67,10 +72,16 @@ Flagger is a full-stack feature flag system (backend + frontend) with extra feat
 - There is no `GET /projects/:id`. The project page finds its project in the full list (deleted included).
 - A restored environment keeps its old `sortOrder` and can land mid-list or tie with another. The next reorder normalizes the values.
 - `useApiQuery` needs a stable `request` reference, so wrap parameterized service calls in `useCallback` (see `useEnvironments`).
+- Mount order in `app.ts`: `requestId`, `cors`, `diagnosisGuard`, `json`, session. A new public or infra route that must work while `DOWN` goes in `GUARD_EXEMPT_PATHS`, which also skips the session middleware.
+- `diagnosis.recordCycleResult` is for the scheduler only. Never call it from request code.
+- Wrap every new background job or scheduled action in `guardedJob`.
+- Replayed audit rows keep their original `created_at`, so `id` order is not time order. Sort audit views by `created_at`.
+- Inside `lib/diagnosis`, import from `@/lib/errors`, not the `@/lib` barrel, to avoid a circular import.
+- MySQL 8.4 auth cache: after a container restart the pool only reconnects with `allowPublicKeyRetrieval=true` (dev) or TLS (prod). See `docs/troubleshooting.md`.
 
 ## Current state
 
-- Done: auth (setup, login, logout, `requireAuth`/`requireAdmin`, forced password change), audit logging, health check (DB + Redis), shared UI kit, app shell, account menu, profile modal (untested)
+- Done: auth (setup, login, logout, `requireAuth`/`requireAdmin`, forced password change), audit logging, health check (DB + Redis), diagnosis service (backend core, wiring, audit fallback, frontend gate, manual test matrix), shared UI kit, app shell, account menu, profile modal (untested)
 - Catalog (backend): environments, projects and entities have admin CRUD with soft delete, restore and audit logging. Environments also support reorder. The seed creates `dev`, `staging` and `production`. R6 is not implemented yet.
 - Catalog (frontend): admin screens for environments, projects and entities (see Admin routes), built on the shared `resource-list` kit. The toolbar only has "Show deleted" so far; search and filters are not built.
 - Admin area: Users, Audit and the dashboard are placeholders.
