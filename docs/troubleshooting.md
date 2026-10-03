@@ -36,6 +36,26 @@ If you appended lines to `.env` from the terminal and it still fails, the file m
 - Is MySQL running? `docker compose ps` should show `healthy`. Start it with `pnpm services:up`.
 - Does `DATABASE_URL` use the right port and credentials? They must match the root `.env` (or the defaults).
 
+The server no longer exits when MySQL is down. It starts, stays `DOWN`, and returns 503 until MySQL is reachable. See [diagnosis.md](./diagnosis.md).
+
+## The system stays DOWN after MySQL restarts
+
+The backend log shows `pool timeout ... (pool connections: active=0 idle=0)` on every cycle, even though MySQL is healthy. MySQL 8.4 uses `caching_sha2_password`, and its auth cache is empty after a restart. Without TLS the driver can't complete the full authentication, so it can never open a connection.
+
+- Development: `config/db/client.ts` sets `allowPublicKeyRetrieval=true`. Check it is still there.
+- Production: use TLS (`ssl=true` and trust the CA) instead.
+- To confirm: `docker run --rm --network host mysql:8.4 mysql -h127.0.0.1 -P3307 -uflagger -pflagger flagger --ssl-mode=DISABLED -e "select 1"` fails with "Authentication requires secure connection".
+- Running a login inside the container (`docker exec ... mysql`) fills the cache and appears to fix it. That is a symptom, not a fix. Don't do it when testing recovery.
+
+## The "Service unavailable" modal doesn't go away
+
+The frontend only reflects the backend. Run `curl -s localhost:4000/api/v1/diagnosis`:
+
+- Still `DOWN`: a dependency is failing. Check the backend log for the `[diagnosis] UP -> DOWN: ...` reason and `docker compose ps`.
+- `UP`, but the modal stays: reload the page. The poll runs every 5 s while the modal shows.
+
+Recovery takes about 15 to 30 s after a dependency is healthy (one scheduler cycle).
+
 ## Cannot find `@/generated/prisma/client`
 
 The Prisma Client has not been generated yet:

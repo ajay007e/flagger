@@ -6,17 +6,18 @@ Every meaningful action in the service is recorded in one append-only table, `au
 
 Each row answers: who did what, to what, and what changed.
 
-| Column                                      | Meaning                                                                                                                             |
-| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `created_at`                                | When it happened (UTC, ms precision)                                                                                                |
-| `actor_type`, `actor_id`                    | Who did it: a user, an API key, or the system. `actor_id` is null for `system` and for unauthenticated events (e.g. a failed login) |
-| `action`                                    | What happened, as `resource.verb`, e.g. `auth.login`, `user.created`                                                                |
-| `resource_type`, `resource_id`              | What it happened to. `resource_id` is a string (some resources, like `system_settings`, use a string key, not a numeric id)         |
-| `project_id`, `entity_id`, `environment_id` | Scope, used later to decide who can see the row (Epic 4). Null when not applicable                                                  |
-| `outcome`                                   | `success` or `failure`                                                                                                              |
-| `before`, `after`                           | Field-level diff for updates, both null when there is nothing to diff                                                               |
-| `metadata`                                  | Anything else worth keeping (e.g. the attempted email on a failed login)                                                            |
-| `request_id`, `ip_address`, `user_agent`    | Where the request came from                                                                                                         |
+| Column                                      | Meaning                                                                                                                                |
+| ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `created_at`                                | When it happened (UTC, ms precision)                                                                                                   |
+| `event_id`                                  | Unique id (UUID) generated when the event happens. Makes replay from the outage buffer idempotent. Null on rows from before it existed |
+| `actor_type`, `actor_id`                    | Who did it: a user, an API key, or the system. `actor_id` is null for `system` and for unauthenticated events (e.g. a failed login)    |
+| `action`                                    | What happened, as `resource.verb`, e.g. `auth.login`, `user.created`                                                                   |
+| `resource_type`, `resource_id`              | What it happened to. `resource_id` is a string (some resources, like `system_settings`, use a string key, not a numeric id)            |
+| `project_id`, `entity_id`, `environment_id` | Scope, used later to decide who can see the row (Epic 4). Null when not applicable                                                     |
+| `outcome`                                   | `success` or `failure`                                                                                                                 |
+| `before`, `after`                           | Field-level diff for updates, both null when there is nothing to diff                                                                  |
+| `metadata`                                  | Anything else worth keeping (e.g. the attempted email on a failed login)                                                               |
+| `request_id`, `ip_address`, `user_agent`    | Where the request came from                                                                                                            |
 
 `before`, `after`, and `metadata` are sanitized: any field named like a secret (`password`, `token`, `secret`, `apiKey`, ...) is replaced with `[redacted]` before the row is written, recursively, regardless of nesting. See `SENSITIVE_FIELD_NAMES` in `backend/src/lib/audit/constants.ts`.
 
@@ -56,6 +57,23 @@ await writeAuditLog(prisma, {
 });
 ```
 
+## When the database is down
+
+`writeAuditLog` needs the database. Events that must survive an outage (system events such as `diagnosis.down`) use `recordAuditEvent` instead. It never throws:
+
+1. Write to the DB (skipped while the system is `DOWN`).
+2. Otherwise push to the Redis list `flagger:audit:pending`.
+3. Otherwise log a service-down line and append to a local JSONL file (`AUDIT_SPOOL_PATH`, capped at 5 MB).
+
+After recovery, and every 30 s while `UP`, `drainAuditEvents` replays Redis (atomic `LMOVE` to `flagger:audit:processing`, removed only after the insert), then the file. A duplicate `event_id` counts as success, so a crash mid-drain can't create duplicate rows. Unparseable payloads move to `flagger:audit:dead`.
+
+Notes:
+
+- Events are sanitized before they are buffered, so secrets never reach Redis or disk.
+- Replayed rows keep their original `created_at`, so `id` order is not time order. **Sort by `created_at`.**
+- Writes that commit together with a business change keep using `writeAuditLog(tx, ...)`. Those fail with the change.
+- Each instance has its own spool file. The Redis list is shared.
+
 ## Request id
 
 Every request gets a request id (`requestId` middleware in `app.ts`, registered before everything else): a client-supplied `x-request-id` header if present, otherwise a generated UUID. It is echoed back as the same response header, and every audit row written while handling that request shares it, so all the rows from one request can be found together.
@@ -68,6 +86,7 @@ Every request gets a request id (`requestId` middleware in `app.ts`, registered 
 
 ## What is not built yet
 
+- A retry cap in the drain. A permanently failing event blocks the queue.
 - **L2, L3**: the actual calls to `writeAuditLog` from auth, user, and catalog features, as those are built.
 - **L4**: an endpoint to list and filter audit rows, with visibility limited by scope.
 - **L5**: revoking `UPDATE`/`DELETE` on `audit_logs` from the app's database user, so the append-only rule is enforced by MySQL, not just by convention.

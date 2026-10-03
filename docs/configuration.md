@@ -13,16 +13,17 @@
 
 The backend validates every variable when it starts. If any is missing or invalid it prints the variable names and reasons (never the values) and exits.
 
-| Variable              | Required       | Default       | Description                                                                                |
-| --------------------- | -------------- | ------------- | ------------------------------------------------------------------------------------------ |
-| `NODE_ENV`            | No             | `development` | `development`, `test`, or `production`                                                     |
-| `PORT`                | No             | `4000`        | Port the API listens on (1 to 65535)                                                       |
-| `DATABASE_URL`        | Yes            |               | MySQL connection, must start with `mysql://`                                               |
-| `SHADOW_DATABASE_URL` | For migrations |               | Shadow database for `prisma migrate dev`. Read by the Prisma CLI, not validated by the app |
-| `REDIS_URL`           | Yes            |               | Redis connection, must start with `redis://` or `rediss://`                                |
-| `SESSION_SECRET`      | Yes            |               | Signs session cookies, at least 32 characters                                              |
-| `ALLOWED_ORIGINS`     | Yes            |               | Comma-separated frontend origins allowed by CORS                                           |
-| `SETUP_API_KEY`       | Yes            |               | Key required to create the first admin, at least 32 characters                             |
+| Variable              | Required       | Default                 | Description                                                                                                                                                                                                     |
+| --------------------- | -------------- | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NODE_ENV`            | No             | `development`           | `development`, `test`, or `production`                                                                                                                                                                          |
+| `PORT`                | No             | `4000`                  | Port the API listens on (1 to 65535)                                                                                                                                                                            |
+| `DATABASE_URL`        | Yes            |                         | MySQL connection, must start with `mysql://`                                                                                                                                                                    |
+| `SHADOW_DATABASE_URL` | For migrations |                         | Shadow database for `prisma migrate dev`. Read by the Prisma CLI, not validated by the app                                                                                                                      |
+| `REDIS_URL`           | Yes            |                         | Redis connection, must start with `redis://` or `rediss://`                                                                                                                                                     |
+| `SESSION_SECRET`      | Yes            |                         | Signs session cookies, at least 32 characters                                                                                                                                                                   |
+| `ALLOWED_ORIGINS`     | Yes            |                         | Comma-separated frontend origins allowed by CORS                                                                                                                                                                |
+| `SETUP_API_KEY`       | Yes            |                         | Key required to create the first admin, at least 32 characters                                                                                                                                                  |
+| `AUDIT_SPOOL_PATH`    | No             | `var/audit-spool.jsonl` | Local fallback file for audit events buffered while both DB and Redis are down. Relative to the backend's working directory (`backend/`), which is gitignored. In Docker, mount a volume here, one per instance |
 
 Rules:
 
@@ -30,6 +31,7 @@ Rules:
 - **`ALLOWED_ORIGINS`:** each entry must be `http(s)://host[:port]` with no path and no trailing slash, and `*` is not allowed. Example: `http://localhost:3000,https://app.example.com`.
 - **Reading values in code:** import `env` from `@/config`. Do not read `process.env` directly. The one exception is `prisma.config.ts`, which only runs in the Prisma CLI.
 - Never commit `.env` files or print secrets in logs.
+- **Database timeouts:** the backend adds `connectTimeout`, `acquireTimeout`, `socketTimeout` and `allowPublicKeyRetrieval` to `DATABASE_URL` itself (`config/db/client.ts`). Don't set them in `.env`. For production, use TLS instead, see [troubleshooting.md](./troubleshooting.md).
 
 ## Frontend
 

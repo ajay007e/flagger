@@ -43,9 +43,9 @@ In production, deploy the frontend and backend under the same site (for example 
 
 ## Redis connection
 
-- The backend fails to start, with a clear message, if Redis is unreachable. See [troubleshooting.md](./troubleshooting.md).
-- Reconnection is handled by the Redis client in the background; a temporary Redis outage while the server is already running logs connection errors without crashing the process.
-- Only the app's own session keys use the `flagger:sess:` prefix, so tools like `redis-cli --scan --pattern 'flagger:sess:*'` stay scoped to this app even if Redis is shared.
+- The backend starts even if Redis is unreachable. It stays `DOWN` and answers 503 until Redis is reachable, see [diagnosis.md](./diagnosis.md).
+- Reconnection is handled by the Redis client in the background. The client fails fast while disconnected (`disableOfflineQueue`), and a Redis outage marks the system `DOWN` immediately. It logs connection errors without crashing the process.
+- `/api/v1/health` and `/api/v1/diagnosis` skip the session middleware, so they work while Redis is down.
 
 ## How a session is created
 
