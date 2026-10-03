@@ -59,6 +59,16 @@ const originList = z
       "each origin must be http(s)://host[:port] with no path or trailing slash",
   });
 
+const LOG_LEVELS = [
+  "trace",
+  "debug",
+  "info",
+  "warn",
+  "error",
+  "fatal",
+  "silent",
+] as const;
+
 const envSchema = z
   .object({
     NODE_ENV: z.enum(NODE_ENVIRONMENTS).default("development"),
@@ -71,6 +81,7 @@ const envSchema = z
     // Local fallback file for audit events buffered while DB and Redis are both down.
     // In Docker, point this at a mounted volume or it is lost with the container.
     AUDIT_SPOOL_PATH: z.string().min(1).default("var/audit-spool.jsonl"),
+    LOG_LEVEL: z.enum(LOG_LEVELS).optional(),
   })
   .superRefine((values, ctx) => {
     if (values.NODE_ENV !== "production") {
@@ -130,6 +141,8 @@ function loadEnv() {
     setupApiKey: values.SETUP_API_KEY,
     allowedOrigins: values.ALLOWED_ORIGINS,
     auditSpoolPath: values.AUDIT_SPOOL_PATH,
+    logLevel:
+      values.LOG_LEVEL ?? (values.NODE_ENV === "production" ? "info" : "debug"),
   });
 }
 
