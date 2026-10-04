@@ -1,5 +1,9 @@
 import type { DbClient } from "../types";
-import type { CreateUserAccessInput, UserAccess } from "./user-access.types";
+import type {
+  CreateUserAccessInput,
+  FindDuplicateAccessInput,
+  UserAccess,
+} from "./user-access.types";
 
 export function create(
   client: DbClient,
@@ -59,5 +63,24 @@ export function softDelete(
   return client.userAccess.update({
     where: { id },
     data: { deletedAt: new Date(), updatedBy },
+  });
+}
+
+export function findActiveDuplicate(
+  client: DbClient,
+  input: FindDuplicateAccessInput,
+): Promise<UserAccess | null> {
+  return client.userAccess.findFirst({
+    where: {
+      userId: input.userId,
+      roleId: input.roleId,
+      projectId: input.projectId,
+      entityId: input.entityId,
+      environmentId: input.environmentId,
+      deletedAt: null,
+      ...(input.excludeAssignmentId
+        ? { assignmentId: { not: input.excludeAssignmentId } }
+        : {}),
+    },
   });
 }

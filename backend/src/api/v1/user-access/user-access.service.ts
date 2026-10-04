@@ -17,6 +17,7 @@ import { userRepository } from "@/repositories/user";
 import type { DbClient } from "@/repositories/types";
 import {
   userAccessRepository,
+  type FindDuplicateAccessInput,
   type UserAccess,
 } from "@/repositories/user-access";
 
@@ -142,6 +143,22 @@ function comboKey(entityId: number | null, environmentId: number | null) {
   return `${entityId ?? "all"}:${environmentId ?? "all"}`;
 }
 
+async function assertNotDuplicate(
+  tx: DbClient,
+  input: FindDuplicateAccessInput,
+): Promise<void> {
+  const duplicate = await userAccessRepository.findActiveDuplicate(tx, input);
+
+  if (duplicate) {
+    log.info(
+      "access.duplicate.refused",
+      "Access request refused because an identical assignment already exists",
+      { data: { userId: input.userId, existingRowId: duplicate.id } },
+    );
+    throw new AppError(ERROR_CODES.CONFLICT, "Access already assigned");
+  }
+}
+
 export function assignAccess(
   userId: number,
   input: AssignAccessInput,
@@ -149,6 +166,7 @@ export function assignAccess(
   request: RequestMeta,
 ): Promise<UserAccessAssignment> {
   return prisma.$transaction(async (tx) => {
+    await userRepository.lockById(tx, userId);
     const target = await userRepository.findById(tx, userId);
 
     if (!target) {
@@ -195,6 +213,13 @@ export function assignAccess(
 
     for (const entityId of entityTargets) {
       for (const environmentId of environmentTargets) {
+        await assertNotDuplicate(tx, {
+          userId,
+          roleId: input.roleId,
+          projectId: input.projectId,
+          entityId,
+          environmentId,
+        });
         const row = await userAccessRepository.create(tx, {
           assignmentId,
           userId,
@@ -249,6 +274,7 @@ export function updateAccess(
   request: RequestMeta,
 ): Promise<UserAccessAssignment> {
   return prisma.$transaction(async (tx) => {
+    await userRepository.lockById(tx, userId);
     const rows = await userAccessRepository.findActiveByAssignment(
       tx,
       userId,
@@ -315,6 +341,14 @@ export function updateAccess(
       }
 
       if (row.roleId !== roleId) {
+        await assertNotDuplicate(tx, {
+          userId,
+          roleId,
+          projectId: row.projectId,
+          entityId: row.entityId,
+          environmentId: row.environmentId,
+          excludeAssignmentId: assignmentId,
+        });
         const updated = await userAccessRepository.updateRole(
           tx,
           row.id,
@@ -344,7 +378,14 @@ export function updateAccess(
     for (const entityId of entityTargets) {
       for (const environmentId of environmentTargets) {
         if (existing.has(comboKey(entityId, environmentId))) continue;
-
+        await assertNotDuplicate(tx, {
+          userId,
+          roleId,
+          projectId: current.projectId,
+          entityId,
+          environmentId,
+          excludeAssignmentId: assignmentId,
+        });
         const row = await userAccessRepository.create(tx, {
           assignmentId,
           userId,

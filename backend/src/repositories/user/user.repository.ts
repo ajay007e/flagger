@@ -69,3 +69,7 @@ export function update(
     },
   });
 }
+
+export async function lockById(client: DbClient, id: number): Promise<void> {
+  await client.$queryRaw`SELECT id FROM users WHERE id = ${id} FOR UPDATE`;
+}
