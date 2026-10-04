@@ -7,11 +7,14 @@ import {
   type RequestMeta,
 } from "@/lib/audit";
 import { AppError, ERROR_CODES } from "@/lib/errors";
+import { getLogger } from "@/lib/logger";
 import { entityRepository, type Entity } from "@/repositories/entity";
 import { projectRepository } from "@/repositories/project";
 
 import { ENTITY_ACTIONS, ENTITY_RESOURCE_TYPE } from "./entities.constants";
 import type { CreateEntityInput, UpdateEntityInput } from "./entities.types";
+
+const log = getLogger("entities");
 
 function auditShape(entity: Entity) {
   return {
@@ -53,6 +56,11 @@ async function assertProjectActive(
   projectId: number,
 ): Promise<void> {
   if (!(await projectRepository.findActiveById(tx, projectId))) {
+    log.info(
+      "entity.parent.inactive",
+      "Entity operation refused because the parent project is missing or deleted",
+      { data: { projectId, projectActive: false } },
+    );
     throw new AppError(ERROR_CODES.NOT_FOUND, "Project not found");
   }
 }
@@ -81,7 +89,20 @@ export function createEntity(
     await assertProjectActive(tx, projectId);
 
     // Includes soft-deleted rows: a deleted key stays reserved in the project.
-    if (await entityRepository.findByKey(tx, projectId, input.key)) {
+    const reserved = await entityRepository.findByKey(tx, projectId, input.key);
+
+    if (reserved) {
+      log.info(
+        "entity.key.reserved",
+        "Entity create refused because the key is already reserved in the project",
+        {
+          data: {
+            projectId,
+            entityId: reserved.id,
+            reservedByDeleted: reserved.deletedAt !== null,
+          },
+        },
+      );
       throw new AppError(
         ERROR_CODES.CONFLICT,
         "Entity key already in use in this project",
@@ -114,7 +135,14 @@ export function updateEntity(
 
     const before = await entityRepository.findActiveById(tx, projectId, id);
 
-    if (!before) throw new AppError(ERROR_CODES.NOT_FOUND, "Entity not found");
+    if (!before) {
+      log.info(
+        "entity.lookup.missing",
+        "Entity operation refused because no active entity matches",
+        { data: { projectId, entityId: id } },
+      );
+      throw new AppError(ERROR_CODES.NOT_FOUND, "Entity not found");
+    }
 
     const entity = await entityRepository.update(tx, id, {
       ...input,
@@ -141,7 +169,14 @@ export function deleteEntity(
 
     const before = await entityRepository.findActiveById(tx, projectId, id);
 
-    if (!before) throw new AppError(ERROR_CODES.NOT_FOUND, "Entity not found");
+    if (!before) {
+      log.info(
+        "entity.lookup.missing",
+        "Entity operation refused because no active entity matches",
+        { data: { projectId, entityId: id } },
+      );
+      throw new AppError(ERROR_CODES.NOT_FOUND, "Entity not found");
+    }
 
     const entity = await entityRepository.softDelete(tx, id, actorId);
 
@@ -164,10 +199,30 @@ export function restoreEntity(
     const before = await entityRepository.findAnyById(tx, projectId, id);
 
     if (!before || !before.deletedAt) {
+      log.info(
+        "entity.restore.refused",
+        "Entity restore refused because it was not found or is not deleted",
+        {
+          data: {
+            projectId,
+            entityId: id,
+            found: Boolean(before),
+            deleted: Boolean(before?.deletedAt),
+          },
+        },
+      );
       throw new AppError(ERROR_CODES.NOT_FOUND, "Deleted entity not found");
     }
 
     const entity = await entityRepository.restore(tx, id, actorId);
+
+    if (entity.deletedAt !== null) {
+      log.error(
+        "entity.restore.invariant",
+        "Entity is still marked deleted after restore",
+        { data: { projectId, entityId: id } },
+      );
+    }
 
     await audit(tx, actorId, ENTITY_ACTIONS.RESTORED, entity, request, {
       before: auditShape(before),

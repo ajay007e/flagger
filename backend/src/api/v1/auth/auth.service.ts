@@ -8,6 +8,7 @@ import {
   type RequestMeta,
 } from "@/lib/audit";
 import { AppError, ERROR_CODES } from "@/lib/errors";
+import { getLogger, setLogMeta } from "@/lib/logger";
 import { userRepository, type User } from "@/repositories/user";
 
 import {
@@ -23,6 +24,8 @@ import type {
   SetupAdminInput,
   SetupAdminResult,
 } from "./auth.types";
+
+const log = getLogger("auth");
 
 // Computed once at startup (a real bcrypt hash, not a hardcoded literal) so a
 // login attempt for an email that doesn't exist still pays the same bcrypt.compare
@@ -59,6 +62,11 @@ export async function setupAdmin(
 ): Promise<SetupAdminResult> {
   return prisma.$transaction(async (tx) => {
     if (await userRepository.hasActiveAdmin(tx)) {
+      log.warn(
+        "auth.setup.rejected",
+        "Admin setup refused because an active admin already exists",
+        { data: { reason: "admin_exists" } },
+      );
       // Same response as an unknown route: the endpoint gives no sign that an
       // admin already exists.
       throw new AppError(ERROR_CODES.NOT_FOUND);
@@ -67,6 +75,11 @@ export async function setupAdmin(
     const existing = await userRepository.findByEmail(tx, input.email);
 
     if (existing) {
+      log.warn(
+        "auth.setup.rejected",
+        "Admin setup refused because the email is already in use",
+        { data: { reason: "email_taken" } },
+      );
       throw new AppError(ERROR_CODES.CONFLICT, "Email already in use");
     }
 
@@ -109,6 +122,10 @@ export async function login(
 ): Promise<LoginResult> {
   const user = await userRepository.findByEmail(prisma, input.email);
 
+  if (user) {
+    setLogMeta({ userId: user.id });
+  }
+
   // Always compare against *some* hash — the user's real one if they exist,
   // otherwise the dummy — so this line runs the same bcrypt work either way.
   const passwordMatches = await bcrypt.compare(
@@ -117,6 +134,14 @@ export async function login(
   );
 
   if (!user || !user.isActive || !passwordMatches) {
+    log.warn("auth.login.rejected", "Login rejected", {
+      data: {
+        userFound: Boolean(user),
+        userActive: user?.isActive ?? false,
+        passwordMatches,
+      },
+    });
+
     await writeAuditLog(prisma, {
       actorType: ACTOR_TYPES.SYSTEM,
       action: AUTH_ACTIONS.LOGIN_FAILED,
@@ -168,6 +193,11 @@ export async function changePassword(
   const user = await userRepository.findById(prisma, userId);
 
   if (!user) {
+    log.warn(
+      "auth.password.rejected",
+      "Password change rejected because the user no longer exists",
+      { data: { reason: "user_missing" } },
+    );
     // Their session was valid a moment ago (requireAuth already checked), but
     // the row is gone now — treat it the same as any other invalid session.
     throw new AppError(ERROR_CODES.SESSION_EXPIRED);
@@ -179,6 +209,11 @@ export async function changePassword(
   );
 
   if (!currentPasswordMatches) {
+    log.warn(
+      "auth.password.rejected",
+      "Password change rejected because the current password is incorrect",
+      { data: { reason: "current_incorrect" } },
+    );
     throw new AppError(
       ERROR_CODES.VALIDATION_ERROR,
       "Current password is incorrect",
@@ -191,6 +226,11 @@ export async function changePassword(
   );
 
   if (newPasswordMatchesCurrent) {
+    log.warn(
+      "auth.password.rejected",
+      "Password change rejected because the new password matches the current one",
+      { data: { reason: "unchanged" } },
+    );
     throw new AppError(
       ERROR_CODES.VALIDATION_ERROR,
       "New password must be different from your current password",
@@ -206,6 +246,12 @@ export async function changePassword(
     sessionVersion,
     updatedBy: user.id,
   });
+
+  log.info(
+    "auth.password.changed",
+    "Password changed and session version bumped",
+    { data: { sessionVersion } },
+  );
 
   await writeAuditLog(prisma, {
     actorType: ACTOR_TYPES.USER,

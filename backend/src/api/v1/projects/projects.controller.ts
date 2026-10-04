@@ -3,7 +3,7 @@ import type { Request, Response } from "express";
 import { getRequestMeta } from "@/lib/audit";
 import { getCurrentUser } from "@/lib/auth";
 
-import * as projectsService from "./projects.service";
+import { projectsService } from "./projects.instrumented";
 import type {
   CreateProjectInput,
   ListProjectsQuery,

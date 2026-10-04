@@ -16,7 +16,7 @@ import {
 } from "@/lib/session";
 
 import { AUTH_ACTIONS } from "./auth.constants";
-import * as authService from "./auth.service";
+import { authService } from "./auth.instrumented";
 import type {
   ChangePasswordInput,
   LoginInput,
