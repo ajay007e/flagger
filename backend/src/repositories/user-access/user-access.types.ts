@@ -11,3 +11,12 @@ export interface CreateUserAccessInput {
   environmentId: number | null;
   updatedBy: number;
 }
+
+export interface FindDuplicateAccessInput {
+  userId: number;
+  roleId: number;
+  projectId: number | null;
+  entityId: number | null;
+  environmentId: number | null;
+  excludeAssignmentId?: string;
+}
