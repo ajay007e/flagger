@@ -5,3 +5,4 @@ export { flushLogs, getLogger } from "./logger";
 export type { ScopedLogger } from "./logger";
 export { cap } from "./redact";
 export type { LogContext, LogData, LogMeta, LogScope } from "./types";
+export { recordRoute, resolveRoute } from "./route";

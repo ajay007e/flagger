@@ -4,15 +4,16 @@ import type { NextFunction, Request, Response } from "express";
 
 import { env } from "@/config";
 import { AppError, ERROR_CODES } from "@/lib/errors";
+import { getLogger, recordRoute } from "@/lib/logger";
 
 import { SETUP_API_KEY_HEADER } from "./auth.constants";
+
+const log = getLogger("auth");
 
 function isEqual(a: string, b: string): boolean {
   const bufferA = Buffer.from(a);
   const bufferB = Buffer.from(b);
 
-  // Different lengths leaks only the length, not the content; timingSafeEqual
-  // requires equal-length buffers so this check has to come first.
   if (bufferA.length !== bufferB.length) {
     return false;
   }
@@ -20,17 +21,19 @@ function isEqual(a: string, b: string): boolean {
   return timingSafeEqual(bufferA, bufferB);
 }
 
-/** Rejects the request unless it carries the correct setup key. Deliberately
- * returns the same UNAUTHENTICATED error whether the header is missing or wrong,
- * so nothing distinguishes the two cases. */
 export function requireSetupKey(
   req: Request,
-  _res: Response,
+  res: Response,
   next: NextFunction,
 ): void {
+  recordRoute(req, res);
+
   const supplied = req.get(SETUP_API_KEY_HEADER);
 
   if (!supplied || !isEqual(supplied, env.setupApiKey)) {
+    log.warn("auth.denied", "Setup request rejected because of its setup key", {
+      data: { reason: supplied ? "setup_key_invalid" : "setup_key_missing" },
+    });
     next(new AppError(ERROR_CODES.UNAUTHENTICATED));
     return;
   }

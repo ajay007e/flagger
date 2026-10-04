@@ -5,15 +5,12 @@ import {
   createLogContext,
   getLogger,
   logContext,
+  resolveRoute,
   TRACE_ID_HEADER,
   TRACE_ID_PATTERN,
 } from "@/lib/logger";
 
 const log = getLogger("http");
-
-function resolveRoute(req: Request): string {
-  return req.route ? `${req.baseUrl}${req.route.path}` : "unmatched";
-}
 
 function resolveBodyKeys(req: Request): string[] | undefined {
   const body: unknown = req.body;
@@ -55,7 +52,7 @@ export function requestLogger(
         const status = res.statusCode;
         const level =
           status >= 500 ? "error" : status >= 400 ? "warn" : "debug";
-        const route = resolveRoute(req);
+        const route = resolveRoute(req, res);
         const durationMs = elapsedMs();
 
         log[level](
@@ -85,7 +82,7 @@ export function requestLogger(
       }
 
       logContext.run(context, () => {
-        const route = resolveRoute(req);
+        const route = resolveRoute(req, res);
         const durationMs = elapsedMs();
 
         log.warn(
