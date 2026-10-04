@@ -2,22 +2,72 @@ import { PrismaMariaDb } from "@prisma/adapter-mariadb";
 
 import { env } from "@/config/env";
 import { PrismaClient } from "@/generated/prisma/client";
+import { getLogger, logContext } from "@/lib/logger";
 
-// Fail fast on dead sockets after a DB restart instead of hanging.
-// allowPublicKeyRetrieval: MySQL 8.4's caching_sha2_password cannot complete a
-// full authentication over a non-TLS connection without it, and its auth cache
-// is empty after a container restart. Development only: use TLS (ssl=true) in
-// production.
+const log = getLogger("db");
+
 const url = new URL(env.databaseUrl);
 url.searchParams.set("connectTimeout", "2000");
 url.searchParams.set("acquireTimeout", "2000");
 url.searchParams.set("socketTimeout", "3000");
 url.searchParams.set("allowPublicKeyRetrieval", "true");
 
-// One shared client for the whole app.
 const adapter = new PrismaMariaDb(url.toString());
 
-export const prisma = new PrismaClient({ adapter });
+export const prisma = new PrismaClient({
+  adapter,
+  log: [
+    { emit: "event", level: "query" },
+    { emit: "event", level: "warn" },
+    { emit: "event", level: "error" },
+  ],
+});
+
+prisma.$on("query", (event) => {
+  const store = logContext.getStore();
+
+  if (store) {
+    store.counters.queryCount += 1;
+    store.counters.dbTimeMs += event.duration;
+  }
+
+  const durationMs = Math.round(event.duration * 10) / 10;
+  const data = { sql: event.query, durationMs };
+
+  if (event.duration >= env.slowQueryErrorMs) {
+    log.error(
+      "db.query.slow",
+      `Database query took ${durationMs}ms, above the ${env.slowQueryErrorMs}ms error threshold`,
+      { data },
+    );
+    return;
+  }
+
+  if (event.duration >= env.slowQueryWarnMs) {
+    log.warn(
+      "db.query.slow",
+      `Database query took ${durationMs}ms, above the ${env.slowQueryWarnMs}ms slow threshold`,
+      { data },
+    );
+    return;
+  }
+
+  log.trace("db.query", `Database query completed in ${durationMs}ms`, {
+    data,
+  });
+});
+
+prisma.$on("warn", (event) => {
+  log.warn("db.warn", "Prisma reported a warning", {
+    data: { target: event.target },
+  });
+});
+
+prisma.$on("error", (event) => {
+  log.error("db.error", "Prisma reported an error", {
+    data: { target: event.target },
+  });
+});
 
 export async function connectDatabase(): Promise<void> {
   try {

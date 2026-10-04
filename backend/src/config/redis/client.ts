@@ -1,21 +1,33 @@
 import { createClient } from "redis";
 
 import { env } from "@/config";
+import { getLogger } from "@/lib/logger";
 
-// One shared client for the whole app. createClient() does not connect on its
-// own; connectRedis() below controls exactly when the first connection happens.
-// disableOfflineQueue: commands fail immediately (ClientOfflineError) while
-// disconnected instead of queueing forever, so requests return 503 rather than hang.
+const log = getLogger("redis");
+
 export const redis = createClient({
   url: env.redisUrl,
   disableOfflineQueue: true,
 });
 
-// Logged, not thrown: the client retries in the background and emits "error"
-// on every failed attempt. An unhandled "error" event would otherwise crash
-// the process.
+redis.on("connect", () => {
+  log.info("redis.connect", "Redis socket connected");
+});
+
+redis.on("ready", () => {
+  log.info("redis.ready", "Redis client is ready to accept commands");
+});
+
+redis.on("reconnecting", () => {
+  log.warn("redis.reconnecting", "Redis client is trying to reconnect");
+});
+
+redis.on("end", () => {
+  log.warn("redis.end", "Redis connection closed");
+});
+
 redis.on("error", (error) => {
-  console.error("[redis] connection error:", error.message);
+  log.error("redis.error", "Redis client reported an error", { err: error });
 });
 
 export async function connectRedis(): Promise<void> {

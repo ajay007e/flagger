@@ -71,7 +71,7 @@ export function requestLogger(
               userAgent: cap(req.get("user-agent"), 200),
               bodyKeys: resolveBodyKeys(req),
               queryCount: context.counters.queryCount,
-              dbTimeMs: context.counters.dbTimeMs,
+              dbTimeMs: Math.round(context.counters.dbTimeMs),
               services: [...new Set(context.counters.services)],
             },
           },
