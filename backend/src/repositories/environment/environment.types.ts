@@ -1,4 +1,3 @@
-// Confirm this import path against user.types.ts.
 import type { EnvironmentModel } from "@/generated/prisma/models";
 
 export type Environment = EnvironmentModel;

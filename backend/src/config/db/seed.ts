@@ -1,8 +1,11 @@
 import { disconnectDatabase, prisma } from "./client";
-import { DEFAULT_ENVIRONMENTS, DEFAULT_SYSTEM_SETTINGS } from "../constants";
+import {
+  DEFAULT_ENVIRONMENTS,
+  DEFAULT_ROLES,
+  DEFAULT_SYSTEM_SETTINGS,
+} from "../constants";
+import { assertPermissions } from "../../lib/permissions";
 
-// Safe to run repeatedly: existing rows are never overwritten (update is empty),
-// so values changed later through the app are kept.
 async function main(): Promise<void> {
   for (const setting of DEFAULT_SYSTEM_SETTINGS) {
     await prisma.systemSetting.upsert({
@@ -23,6 +26,24 @@ async function main(): Promise<void> {
   }
 
   console.log(`Seeded ${DEFAULT_ENVIRONMENTS.length} environment(s).`);
+
+  for (const { permissions, ...data } of DEFAULT_ROLES) {
+    const role = await prisma.role.upsert({
+      where: { key: data.key },
+      update: {},
+      create: data,
+    });
+
+    await prisma.rolePermission.createMany({
+      data: assertPermissions(permissions).map((permission) => ({
+        roleId: role.id,
+        permission,
+      })),
+      skipDuplicates: true,
+    });
+  }
+
+  console.log(`Seeded ${DEFAULT_ROLES.length} role(s).`);
 }
 
 main()
