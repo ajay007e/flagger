@@ -42,7 +42,7 @@ export function requestLogger(
     Math.round(Number(process.hrtime.bigint() - startedAt) / 1e6);
 
   logContext.run(context, () => {
-    log.info("request.start", `${req.method} request received`, {
+    log.debug("request.start", `${req.method} request received`, {
       data: {
         method: req.method,
         ip: req.ip,
@@ -53,7 +53,8 @@ export function requestLogger(
     res.on("finish", () => {
       logContext.run(context, () => {
         const status = res.statusCode;
-        const level = status >= 500 ? "error" : status >= 400 ? "warn" : "info";
+        const level =
+          status >= 500 ? "error" : status >= 400 ? "warn" : "debug";
         const route = resolveRoute(req);
         const durationMs = elapsedMs();
 

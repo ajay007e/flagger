@@ -3,7 +3,7 @@ import type { Request, Response } from "express";
 import { getRequestMeta } from "@/lib/audit";
 import { getCurrentUser } from "@/lib/auth";
 
-import * as environmentsService from "./environments.service";
+import { environmentsService } from "./environments.instrumented";
 import type {
   CreateEnvironmentInput,
   ListEnvironmentsQuery,

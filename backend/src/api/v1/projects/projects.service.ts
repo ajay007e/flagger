@@ -7,10 +7,13 @@ import {
   type RequestMeta,
 } from "@/lib/audit";
 import { AppError, ERROR_CODES } from "@/lib/errors";
+import { getLogger } from "@/lib/logger";
 import { projectRepository, type Project } from "@/repositories/project";
 
 import { PROJECT_ACTIONS, PROJECT_RESOURCE_TYPE } from "./projects.constants";
 import type { CreateProjectInput, UpdateProjectInput } from "./projects.types";
+
+const log = getLogger("projects");
 
 function auditShape(project: Project) {
   return {
@@ -60,7 +63,19 @@ export function createProject(
 ): Promise<Project> {
   return prisma.$transaction(async (tx) => {
     // Includes soft-deleted rows: a deleted key stays reserved.
-    if (await projectRepository.findByKey(tx, input.key)) {
+    const reserved = await projectRepository.findByKey(tx, input.key);
+
+    if (reserved) {
+      log.info(
+        "project.key.reserved",
+        "Project create refused because the key is already reserved",
+        {
+          data: {
+            projectId: reserved.id,
+            reservedByDeleted: reserved.deletedAt !== null,
+          },
+        },
+      );
       throw new AppError(ERROR_CODES.CONFLICT, "Project key already in use");
     }
 
@@ -86,7 +101,14 @@ export function updateProject(
   return prisma.$transaction(async (tx) => {
     const before = await projectRepository.findActiveById(tx, id);
 
-    if (!before) throw new AppError(ERROR_CODES.NOT_FOUND, "Project not found");
+    if (!before) {
+      log.info(
+        "project.lookup.missing",
+        "Project operation refused because no active project matches",
+        { data: { projectId: id } },
+      );
+      throw new AppError(ERROR_CODES.NOT_FOUND, "Project not found");
+    }
 
     const project = await projectRepository.update(tx, id, {
       ...input,
@@ -110,7 +132,14 @@ export function deleteProject(
   return prisma.$transaction(async (tx) => {
     const before = await projectRepository.findActiveById(tx, id);
 
-    if (!before) throw new AppError(ERROR_CODES.NOT_FOUND, "Project not found");
+    if (!before) {
+      log.info(
+        "project.lookup.missing",
+        "Project operation refused because no active project matches",
+        { data: { projectId: id } },
+      );
+      throw new AppError(ERROR_CODES.NOT_FOUND, "Project not found");
+    }
 
     const project = await projectRepository.softDelete(tx, id, actorId);
 
@@ -130,10 +159,29 @@ export function restoreProject(
     const before = await projectRepository.findAnyById(tx, id);
 
     if (!before || !before.deletedAt) {
+      log.info(
+        "project.restore.refused",
+        "Project restore refused because it was not found or is not deleted",
+        {
+          data: {
+            projectId: id,
+            found: Boolean(before),
+            deleted: Boolean(before?.deletedAt),
+          },
+        },
+      );
       throw new AppError(ERROR_CODES.NOT_FOUND, "Deleted project not found");
     }
 
     const project = await projectRepository.restore(tx, id, actorId);
+
+    if (project.deletedAt !== null) {
+      log.error(
+        "project.restore.invariant",
+        "Project is still marked deleted after restore",
+        { data: { projectId: id } },
+      );
+    }
 
     await audit(tx, actorId, PROJECT_ACTIONS.RESTORED, project, request, {
       before: auditShape(before),

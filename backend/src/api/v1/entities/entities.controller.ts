@@ -3,7 +3,7 @@ import type { Request, Response } from "express";
 import { getRequestMeta } from "@/lib/audit";
 import { getCurrentUser } from "@/lib/auth";
 
-import * as entitiesService from "./entities.service";
+import { entitiesService } from "./entities.instrumented";
 import type {
   CreateEntityInput,
   ListEntitiesQuery,
