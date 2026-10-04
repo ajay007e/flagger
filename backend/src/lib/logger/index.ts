@@ -31,7 +31,7 @@ const root =
           options: { colorize: true, ignore: "service,env" },
         },
       })
-    : pino(options, pino.destination({ dest: 1, sync: true })); // stdout, no transport
+    : pino(options, pino.destination({ dest: 1, sync: env.logSync }));
 
 export type ScopedLogger = Record<
   LogLevel,
@@ -40,8 +40,16 @@ export type ScopedLogger = Record<
 
 const LEVELS: LogLevel[] = ["trace", "debug", "info", "warn", "error", "fatal"];
 
+const QUIET_LEVEL = ["error", "fatal", "silent"].includes(env.logLevel)
+  ? env.logLevel
+  : "warn";
+
 export function getLogger(scope: LogScope): ScopedLogger {
-  const child = root.child({ scope });
+  const filtered = env.logScopes.length > 0 && !env.logScopes.includes(scope);
+  const child = root.child(
+    { scope },
+    filtered ? { level: QUIET_LEVEL } : undefined,
+  );
   const make =
     (level: LogLevel) =>
     (event: string, msg: string, extra: LogExtra = {}) => {

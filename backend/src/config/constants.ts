@@ -14,3 +14,32 @@ export const DEFAULT_ENVIRONMENTS = [
   { key: "staging", name: "Staging", sortOrder: 1 },
   { key: "production", name: "Production", sortOrder: 2 },
 ];
+
+export const LOG_LEVELS = [
+  "trace",
+  "debug",
+  "info",
+  "warn",
+  "error",
+  "fatal",
+  "silent",
+] as const;
+
+export const LOG_SCOPES = [
+  "http",
+  "auth",
+  "session",
+  "db",
+  "redis",
+  "diagnosis",
+  "audit",
+  "process",
+  "health",
+  "environments",
+  "projects",
+  "entities",
+  "users",
+] as const;
+
+export const DEFAULT_SLOW_QUERY_WARN_MS = 500;
+export const DEFAULT_SLOW_QUERY_ERROR_MS = 2000;
