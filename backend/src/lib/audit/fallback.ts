@@ -14,6 +14,7 @@ import { env } from "@/config/env";
 import { prisma } from "@/config/db";
 import { redis } from "@/config/redis";
 import { diagnosis } from "@/lib/diagnosis";
+import { describeFailure, getLogger } from "@/lib/logger";
 
 import {
   AUDIT_DB_WRITE_TIMEOUT_MS,
@@ -28,18 +29,29 @@ import { sanitizeAuditValue } from "./sanitize";
 import type { PendingAuditEvent, WriteAuditLogInput } from "./types";
 import { writeAuditLog } from "./writer";
 
+type ReplayResult = "replayed" | "duplicate" | "discarded";
+type ReplayCounts = Record<ReplayResult, number>;
+
+const log = getLogger("audit");
+
 const AUDIT_SPOOL_PATH = env.auditSpoolPath;
 const DRAINING_PATH = `${AUDIT_SPOOL_PATH}.draining`;
+const TIMEOUT_MESSAGE = "audit write timed out";
 
 function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
   let timer: NodeJS.Timeout | undefined;
   const t = new Promise<never>((_, rej) => {
-    timer = setTimeout(() => rej(new Error("audit write timed out")), ms);
+    timer = setTimeout(() => rej(new Error(TIMEOUT_MESSAGE)), ms);
   });
   return Promise.race([p, t]).finally(() => clearTimeout(timer));
 }
 
-// Sanitized here so secrets never reach Redis or disk.
+function failureReason(error: unknown): string {
+  return error instanceof Error && error.message === TIMEOUT_MESSAGE
+    ? "timeout"
+    : describeFailure(error).errorType;
+}
+
 function toPending(input: WriteAuditLogInput): PendingAuditEvent {
   return {
     ...input,
@@ -71,71 +83,94 @@ async function appendToSpool(line: string): Promise<boolean> {
   }
 }
 
-/**
- * Best-effort audit write for events that must survive an outage (system events,
- * failures). Never throws. DB -> Redis list -> local JSONL spool.
- * For writes that commit with a business change, keep using writeAuditLog(tx, ...).
- */
 export async function recordAuditEvent(
   input: WriteAuditLogInput,
 ): Promise<void> {
   const event = toPending(input);
   const line = JSON.stringify(event);
+  const ids = { action: event.action, auditEventId: event.eventId };
+  const dbSkipped = !diagnosis.isUp();
+  let dbFailure: string | undefined;
+  let redisFailure: string | undefined;
 
-  // While DOWN, skip the DB: don't wait on a dead pool.
-  if (diagnosis.isUp()) {
+  if (!dbSkipped) {
     try {
       await withTimeout(
         writeAuditLog(prisma, fromPending(event)),
         AUDIT_DB_WRITE_TIMEOUT_MS,
       );
       return;
-    } catch {
-      /* fall through */
+    } catch (error) {
+      dbFailure = failureReason(error);
     }
   }
 
   try {
     await redis.rPush(AUDIT_PENDING_KEY, line);
+    log.warn(
+      "audit.fallback.redis",
+      `Audit event ${event.action} was buffered in Redis because the database write did not happen`,
+      { data: { ...ids, target: "redis", dbSkipped, dbFailure } },
+    );
     return;
-  } catch {
-    /* fall through */
+  } catch (error) {
+    redisFailure = failureReason(error);
   }
 
-  console.error(
-    `[audit] DB and Redis unavailable, spooling ${event.action} (${event.eventId}) to local file`,
-  );
-  if (!(await appendToSpool(line))) {
-    console.error("[audit] spool full or unwritable, event LOST:", line);
+  if (await appendToSpool(line)) {
+    log.warn(
+      "audit.fallback.spool",
+      `Audit event ${event.action} was written to the local spool file because the database and Redis are unavailable`,
+      { data: { ...ids, target: "spool", dbSkipped, dbFailure, redisFailure } },
+    );
+    return;
   }
+
+  log.error(
+    "audit.event.lost",
+    `Audit event ${event.action} was lost because the database, Redis and the spool file all failed`,
+    { data: { ...ids, dbSkipped, dbFailure, redisFailure } },
+  );
 }
 
-// A duplicate eventId means it is already stored: treat as success.
-async function insertOnce(event: PendingAuditEvent): Promise<void> {
+async function insertOnce(
+  event: PendingAuditEvent,
+): Promise<"replayed" | "duplicate"> {
   try {
     await writeAuditLog(prisma, fromPending(event));
+    return "replayed";
   } catch (err) {
     if ((err as { code?: string }).code !== "P2002") throw err;
+    return "duplicate";
   }
 }
 
-async function replayRedisItem(raw: string): Promise<void> {
+async function replayRedisItem(raw: string): Promise<ReplayResult> {
   let event: PendingAuditEvent;
   try {
     event = JSON.parse(raw) as PendingAuditEvent;
   } catch {
     await redis.rPush(AUDIT_DEAD_KEY, raw);
     await redis.lRem(AUDIT_PROCESSING_KEY, 1, raw);
-    return;
+    return "discarded";
   }
-  await insertOnce(event);
-  await redis.lRem(AUDIT_PROCESSING_KEY, 1, raw); // only after the insert succeeded
+  const result = await insertOnce(event);
+  await redis.lRem(AUDIT_PROCESSING_KEY, 1, raw);
+  return result;
 }
 
-async function drainRedis(): Promise<void> {
-  // Leftovers from a crashed drain. Another instance may do the same: harmless (idempotent).
-  for (const raw of await redis.lRange(AUDIT_PROCESSING_KEY, 0, -1))
-    await replayRedisItem(raw);
+const emptyCounts = (): ReplayCounts => ({
+  replayed: 0,
+  duplicate: 0,
+  discarded: 0,
+});
+
+async function drainRedis(): Promise<ReplayCounts> {
+  const counts = emptyCounts();
+
+  for (const raw of await redis.lRange(AUDIT_PROCESSING_KEY, 0, -1)) {
+    counts[await replayRedisItem(raw)]++;
+  }
 
   for (let i = 0; i < AUDIT_DRAIN_BATCH; i++) {
     const raw = await redis.lMove(
@@ -144,22 +179,25 @@ async function drainRedis(): Promise<void> {
       "LEFT",
       "RIGHT",
     );
-    if (raw === null) return;
-    await replayRedisItem(raw);
+    if (raw === null) break;
+    counts[await replayRedisItem(raw)]++;
   }
+
+  return counts;
 }
 
-async function drainSpool(): Promise<void> {
+async function drainSpool(): Promise<ReplayCounts> {
+  const counts = emptyCounts();
   let content: string;
+
   try {
-    content = await readFile(DRAINING_PATH, "utf8"); // resume a previous drain
+    content = await readFile(DRAINING_PATH, "utf8");
   } catch {
     try {
-      // Rename first so events appended during the drain go to a fresh file.
       await rename(AUDIT_SPOOL_PATH, DRAINING_PATH);
       content = await readFile(DRAINING_PATH, "utf8");
     } catch {
-      return; // nothing spooled
+      return counts;
     }
   }
 
@@ -169,39 +207,48 @@ async function drainSpool(): Promise<void> {
     try {
       event = JSON.parse(lines[i]) as PendingAuditEvent;
     } catch {
-      console.error("[audit] dropping unparseable spool line");
+      counts.discarded++;
       continue;
     }
     try {
-      await insertOnce(event);
+      counts[await insertOnce(event)]++;
     } catch (err) {
-      await writeFile(DRAINING_PATH, `${lines.slice(i).join("\n")}\n`); // keep the rest
+      await writeFile(DRAINING_PATH, `${lines.slice(i).join("\n")}\n`);
       throw err;
     }
   }
   await unlink(DRAINING_PATH);
+
+  return counts;
+}
+
+function logReplay(source: "redis" | "spool", counts: ReplayCounts): void {
+  if (counts.replayed + counts.duplicate + counts.discarded === 0) return;
+
+  log[counts.discarded > 0 ? "warn" : "info"](
+    "audit.replay.completed",
+    `Replayed ${counts.replayed} buffered audit event(s) from ${source}`,
+    { data: { source, ...counts } },
+  );
 }
 
 let draining = false;
 
-/** Replays buffered events: Redis first, then the local file. Only runs while UP. Never throws. */
 export async function drainAuditEvents(): Promise<void> {
   if (draining || !diagnosis.isUp()) return;
   draining = true;
   try {
-    await drainRedis();
-    await drainSpool();
+    logReplay("redis", await drainRedis());
+    logReplay("spool", await drainSpool());
   } catch (err) {
-    console.error(
-      "[audit] drain stopped, will retry:",
-      err instanceof Error ? err.message : err,
-    );
+    log.warn("audit.drain.stopped", "Audit replay stopped and will retry", {
+      err,
+    });
   } finally {
     draining = false;
   }
 }
 
-/** Retries periodically, so events buffered while UP (a transient DB error) are not stranded. */
 export function startAuditDrain(): () => void {
   const timer = setInterval(
     () => void drainAuditEvents(),

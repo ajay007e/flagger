@@ -50,8 +50,13 @@ export function requestLogger(
     res.on("finish", () => {
       logContext.run(context, () => {
         const status = res.statusCode;
-        const level =
-          status >= 500 ? "error" : status >= 400 ? "warn" : "debug";
+        const level = res.locals.diagnosisBlocked
+          ? "warn"
+          : status >= 500
+            ? "error"
+            : status >= 400
+              ? "warn"
+              : "debug";
         const route = resolveRoute(req, res);
         const durationMs = elapsedMs();
 

@@ -1,3 +1,5 @@
+import { getLogger } from "@/lib/logger";
+
 import {
   DIAGNOSIS_PUBLIC_MESSAGE,
   REQUIRED_CLEAN_CYCLES,
@@ -10,14 +12,14 @@ import type {
 
 type Listener = (t: DiagnosisTransition) => void;
 
+const log = getLogger("diagnosis");
+
 class DiagnosisService {
-  // Fail closed: DOWN on boot until the scheduler completes a clean cycle.
   private status: DiagnosisStatus = "DOWN";
   private reason: string | null = "Awaiting first health check";
   private since = new Date();
   private lastCheckedAt: Date | null = null;
   private cleanCycles = 0;
-  // Bumped on every markDown. Lets a cycle detect a failure that happened mid-cycle.
   private generation = 0;
   private listeners: Listener[] = [];
 
@@ -34,47 +36,80 @@ class DiagnosisService {
     return this.status === "UP";
   }
 
-  /** Internal detail for logs/audit. Never return this over HTTP. */
   internalReason(): string | null {
     return this.reason;
   }
 
-  /** Subscribe to UP/DOWN transitions (used later by audit and drain). */
   onTransition(fn: Listener): void {
     this.listeners.push(fn);
   }
 
-  /** Callable from anywhere (error handler, jobs, scheduler). */
   markDown(reason: string): void {
     this.generation++;
     this.cleanCycles = 0;
     this.reason = reason;
-    if (this.status === "DOWN") return;
+
+    if (this.status === "DOWN") {
+      log.debug(
+        "diagnosis.markDown.repeat",
+        "Failure reported while the system is already DOWN",
+        { data: { reason } },
+      );
+      return;
+    }
+
     this.status = "DOWN";
     this.since = new Date();
     this.emit("UP", "DOWN");
   }
 
-  /** SCHEDULER ONLY. Call at the start of a cycle, pass the result to recordCycleResult. */
   beginCycle(): number {
     return this.generation;
   }
 
-  /**
-   * SCHEDULER ONLY. The sole DOWN -> UP path. Never call from request code.
-   * Any failure, or a markDown during the cycle, discards the cycle as not clean.
-   */
   recordCycleResult(failures: string[], startedGeneration: number): void {
     this.lastCheckedAt = new Date();
 
     if (failures.length > 0) {
+      log.debug(
+        "diagnosis.cycle.failed",
+        `Health cycle found ${failures.length} failing check(s)`,
+        { data: { failureCount: failures.length } },
+      );
       this.markDown(failures.join("; "));
       return;
     }
-    if (startedGeneration !== this.generation) return; // failure raced the cycle
-    if (this.status === "UP") return;
+
+    if (startedGeneration !== this.generation) {
+      log.debug(
+        "diagnosis.cycle.discarded",
+        "Health cycle discarded because a failure happened during it",
+        { data: { status: this.status } },
+      );
+      return;
+    }
+
+    if (this.status === "UP") {
+      log.debug("diagnosis.cycle.clean", "Health cycle clean while UP", {
+        data: { status: this.status },
+      });
+      return;
+    }
 
     this.cleanCycles++;
+
+    log.debug(
+      "diagnosis.cycle.clean",
+      `Clean health cycle ${this.cleanCycles} of ${REQUIRED_CLEAN_CYCLES} needed to recover`,
+      {
+        data: {
+          status: this.status,
+          cleanCycles: this.cleanCycles,
+          required: REQUIRED_CLEAN_CYCLES,
+        },
+      },
+    );
+
     if (this.cleanCycles < REQUIRED_CLEAN_CYCLES) return;
 
     this.status = "UP";
@@ -90,14 +125,22 @@ class DiagnosisService {
       reason: this.reason,
       at: this.since,
     };
-    console.error(
-      `[diagnosis] ${from} -> ${to}${t.reason ? `: ${t.reason}` : ""}`,
+
+    log[to === "DOWN" ? "warn" : "info"](
+      "diagnosis.status.changed",
+      `System status changed from ${from} to ${to}${t.reason ? ` because ${t.reason}` : ""}`,
+      { data: { from, to, reason: t.reason ?? undefined } },
     );
+
     for (const fn of this.listeners) {
       try {
         fn(t);
       } catch (err) {
-        console.error("[diagnosis] listener failed", err);
+        log.error(
+          "diagnosis.listener.failed",
+          "A diagnosis transition listener threw",
+          { err },
+        );
       }
     }
   }
