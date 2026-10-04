@@ -6,6 +6,7 @@ import { destroySession, type SessionWithData } from "@/lib/session";
 import { userRepository, type User } from "@/repositories/user";
 
 import type { SessionUser } from "./auth.types";
+import { setLogMeta } from "../logger";
 
 export interface RequireAuthOptions {
   /**
@@ -61,6 +62,11 @@ export function requireAuth(options: RequireAuthOptions = {}) {
         return;
       }
 
+      setLogMeta({
+        userId: session.userId,
+        sessionVersion: session.sessionVersion,
+      });
+
       const user = await userRepository.findById(prisma, session.userId);
 
       const isValid =
@@ -80,6 +86,7 @@ export function requireAuth(options: RequireAuthOptions = {}) {
       }
 
       res.locals.currentUser = toSessionUser(user);
+      setLogMeta({ userType: user.type });
       next();
     } catch (error) {
       next(error);
