@@ -11,11 +11,11 @@ export const redis = createClient({
 });
 
 redis.on("connect", () => {
-  log.info("redis.connect", "Redis socket connected");
+  log.debug("redis.connect", "Redis socket connected");
 });
 
 redis.on("ready", () => {
-  log.info("redis.ready", "Redis client is ready to accept commands");
+  log.debug("redis.ready", "Redis client is ready to accept commands");
 });
 
 redis.on("reconnecting", () => {

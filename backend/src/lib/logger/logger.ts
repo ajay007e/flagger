@@ -28,7 +28,11 @@ const root =
         ...options,
         transport: {
           target: "pino-pretty",
-          options: { colorize: true, ignore: "service,env" },
+          options: {
+            colorize: true,
+            ignore: "service,env,event,scope,data,meta,traceId",
+            messageFormat: "\u001b[36m[{scope}]\u001b[0m - {msg}",
+          },
         },
       })
     : pino(options, pino.destination({ dest: 1, sync: env.logSync }));
@@ -70,7 +74,3 @@ export function getLogger(scope: LogScope): ScopedLogger {
 }
 
 export const flushLogs = () => root.flush();
-export { cap } from "./redact";
-export type { LogContext, LogData, LogMeta, LogScope } from "./types";
-export { createLogContext, logContext, setLogMeta } from "./context";
-export { TRACE_ID_HEADER, TRACE_ID_PATTERN } from "./constants";
