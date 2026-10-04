@@ -108,6 +108,7 @@ const envSchema = z
       .int()
       .positive()
       .default(DEFAULT_SLOW_QUERY_ERROR_MS),
+    TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(10).optional(),
   })
   .superRefine((values, ctx) => {
     if (values.LOG_SLOW_QUERY_ERROR_MS <= values.LOG_SLOW_QUERY_WARN_MS) {
@@ -180,6 +181,8 @@ function loadEnv() {
     logSync: values.LOG_SYNC,
     slowQueryWarnMs: values.LOG_SLOW_QUERY_WARN_MS,
     slowQueryErrorMs: values.LOG_SLOW_QUERY_ERROR_MS,
+    trustProxyHops:
+      values.TRUST_PROXY_HOPS ?? (values.NODE_ENV === "production" ? 1 : 0),
   });
 }
 

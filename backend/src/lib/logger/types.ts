@@ -14,10 +14,17 @@ export interface LogMeta {
   [key: string]: Primitive | undefined;
 }
 
+export interface RequestCounters {
+  queryCount: number;
+  dbTimeMs: number;
+  services: string[];
+}
+
 export interface LogContext {
   requestId?: string;
   traceId: string;
   meta: LogMeta;
+  counters: RequestCounters;
 }
 
 export interface LogExtra {

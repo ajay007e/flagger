@@ -70,6 +70,7 @@ export function getLogger(scope: LogScope): ScopedLogger {
 }
 
 export const flushLogs = () => root.flush();
-export { logContext } from "./context";
 export { cap } from "./redact";
 export type { LogContext, LogData, LogMeta, LogScope } from "./types";
+export { createLogContext, logContext, setLogMeta } from "./context";
+export { TRACE_ID_HEADER, TRACE_ID_PATTERN } from "./constants";

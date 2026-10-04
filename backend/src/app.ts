@@ -10,20 +10,19 @@ import {
   requestId,
   sessionMiddleware,
 } from "@/lib";
-import { errorHandler, notFound } from "@/middleware";
+import { errorHandler, notFound, requestLogger } from "@/middleware";
 import { router } from "@/router";
 
 export const app = express();
 
-// Required for `cookie.secure` and rate limiting (later) to work correctly behind a
-// reverse proxy / load balancer in production.
-if (env.isProduction) {
-  app.set("trust proxy", 1);
+if (env.trustProxyHops > 0) {
+  app.set("trust proxy", env.trustProxyHops);
 }
 
 // First: every request (including ones CORS or the session middleware reject)
 // gets a request id, so it can still be traced in logs and audit rows.
 app.use(requestId);
+app.use(requestLogger);
 
 app.use(
   cors({

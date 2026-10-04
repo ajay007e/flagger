@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import type { NextFunction, Request, Response } from "express";
 
-import { REQUEST_ID_HEADER } from "./constants";
+import { REQUEST_ID_HEADER, REQUEST_ID_PATTERN } from "./constants";
 
 /**
  * Assigns a request id to every request: a client-supplied `x-request-id` if
@@ -17,7 +17,8 @@ export function requestId(
   next: NextFunction,
 ): void {
   const supplied = req.get(REQUEST_ID_HEADER);
-  const id = supplied && supplied.length > 0 ? supplied : randomUUID();
+  const id =
+    supplied && REQUEST_ID_PATTERN.test(supplied) ? supplied : randomUUID();
 
   res.locals.requestId = id;
   res.setHeader(REQUEST_ID_HEADER, id);
