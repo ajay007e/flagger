@@ -42,6 +42,8 @@ Keep them in a `types.ts` and `constants.ts` next to the code that uses them. Wh
 - Database access only through `@/db`.
 - Throw `AppError` for errors the client may see, wrap async handlers in `asyncHandler`, and validate bodies with `validateBody`. See [api-errors.md](./api-errors.md).
 - Migrations follow the rules in [database.md](./database.md).
+- Log through `getLogger(scope)` from `@/lib/logger`. `console` is a lint error (the env boot error and the seed script are the only exceptions). Log ids and booleans, never user strings, bodies or emails. See [logging.md](./logging.md).
+- A new resource gets a scope in `LOG_SCOPES` and a `<resource>.instrumented.ts` that wraps its service. The controller imports the service from there.
 
 ### Formatting and linting
 

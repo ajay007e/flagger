@@ -88,3 +88,7 @@ The seed script upserts `name = "Flagger"`. It never overwrites an existing valu
 - Timestamps are `DATETIME(3)` in UTC.
 - Field names are camelCase in Prisma and mapped to snake_case columns with `@map`, and tables are named with `@@map`.
 - Use `Int @db.UnsignedInt` for ids (Prisma returns `BigInt` as a JavaScript `bigint`, which cannot be sent as JSON).
+
+## Query logging
+
+Every query is logged at `trace` with its SQL text and duration, never its parameters. Queries at or above `LOG_SLOW_QUERY_WARN_MS` log `db.query.slow` at `warn`, and at or above `LOG_SLOW_QUERY_ERROR_MS` at `error`. Each request's `request.finish` line reports `queryCount` and `dbTimeMs`. See [logging.md](./logging.md).

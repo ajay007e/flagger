@@ -10,6 +10,7 @@ A lightweight feature flag service with a web UI, a backend API, and documentati
 - Two interfaces: an admin UI (users, access, configuration) and the Flagger UI (flags)
 - Fine-grained access control, so people only see and change what they are allowed to
 - An audit log of every action in the service
+- Structured logging, with one request id shared by log lines, audit rows and error responses
 - A diagnosis service that blocks all actions while a dependency is down and recovers on its own
 - An approval workflow for flag changes (later)
 - A REST API for applications to read flags (later)
@@ -59,19 +60,20 @@ pnpm dev                                  # frontend and backend together
 
 ## Documentation
 
-| Document                                     | What is in it                                     |
-| -------------------------------------------- | ------------------------------------------------- |
-| [Installation](./docs/installation.md)       | Prerequisites and step-by-step setup              |
-| [Docker services](./docs/docker.md)          | Running MySQL and Redis locally                   |
-| [Database](./docs/database.md)               | Prisma, migrations, seeding                       |
-| [Configuration](./docs/configuration.md)     | Every environment variable                        |
-| [Development guide](./docs/development.md)   | Scripts, conventions, Git workflow                |
-| [API errors](./docs/api-errors.md)           | The error format and codes                        |
-| [Audit](./docs/audit.md)                     | The append-only audit log and its outage fallback |
-| [Sessions](./docs/sessions.md)               | Redis sessions, cookies, CORS                     |
-| [Diagnosis](./docs/diagnosis.md)             | System health, blocking while down, recovery      |
-| [Theming](./docs/theming.md)                 | Light and dark themes, adding custom ones         |
-| [Troubleshooting](./docs/troubleshooting.md) | Fixes for common problems                         |
+| Document                                     | What is in it                                       |
+| -------------------------------------------- | --------------------------------------------------- |
+| [Installation](./docs/installation.md)       | Prerequisites and step-by-step setup                |
+| [Docker services](./docs/docker.md)          | Running MySQL and Redis locally                     |
+| [Database](./docs/database.md)               | Prisma, migrations, seeding                         |
+| [Configuration](./docs/configuration.md)     | Every environment variable                          |
+| [Development guide](./docs/development.md)   | Scripts, conventions, Git workflow                  |
+| [API errors](./docs/api-errors.md)           | The error format and codes                          |
+| [Audit](./docs/audit.md)                     | The append-only audit log and its outage fallback   |
+| [Sessions](./docs/sessions.md)               | Redis sessions, cookies, CORS                       |
+| [Diagnosis](./docs/diagnosis.md)             | System health, blocking while down, recovery        |
+| [Logging](./docs/logging.md)                 | Log format, levels, events, debugging by request id |
+| [Theming](./docs/theming.md)                 | Light and dark themes, adding custom ones           |
+| [Troubleshooting](./docs/troubleshooting.md) | Fixes for common problems                           |
 
 Each app also has its own README: [frontend](./frontend/README.md) and [backend](./backend/README.md).
 
