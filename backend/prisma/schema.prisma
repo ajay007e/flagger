@@ -9,11 +9,6 @@ datasource db {
   provider = "mysql"
 }
 
-// Every table follows the same base convention:
-//   id/key, ..., updated_by, created_at, updated_at, deleted_at (soft delete)
-
-// Key/value store for system information and, later, system preferences.
-// Example: key "name" -> "Flagger". Values are validated in code, not in the database.
 model SystemSetting {
   key       String    @id @map("setting_key") @db.VarChar(100)
   value     Json
@@ -35,23 +30,15 @@ enum UserType {
 model User {
   id Int @id @default(autoincrement()) @db.UnsignedInt
 
-  email String @unique @db.VarChar(255)
-  name  String @db.VarChar(255)
-  // bcrypt hash. Never the plain password. Excluded from every response by
-  // the repository, never selected wholesale (see repositories/user).
+  email    String @unique @db.VarChar(255)
+  name     String @db.VarChar(255)
   password String @db.VarChar(255)
 
   type     UserType @default(user)
   isActive Boolean  @default(true) @map("is_active")
 
-  // Set on creation and on an admin-issued reset. Cleared when the user sets
-  // their own password. While true, every route except change-password,
-  // me, and logout is blocked (see A6, not yet built).
   mustChangePassword Boolean @default(false) @map("must_change_password")
 
-  // Bumped on password change or reset. A session whose stored version does
-  // not match this logs out on its next request (see docs/sessions.md, A4/A6,
-  // neither built yet). Sessions are otherwise stateless w.r.t. this table.
   sessionVersion Int @default(1) @map("session_version")
 
   updatedBy Int?      @map("updated_by") @db.UnsignedInt
@@ -59,7 +46,6 @@ model User {
   updatedAt DateTime  @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
   deletedAt DateTime? @map("deleted_at") @db.DateTime(3)
 
-  // Self-relation: who last changed this user's row.
   updatedByUser User?  @relation("UserUpdatedBy", fields: [updatedBy], references: [id], onDelete: Restrict)
   updatedUsers  User[] @relation("UserUpdatedBy")
 
@@ -67,6 +53,7 @@ model User {
   updatedEnvironments   Environment[]   @relation("EnvironmentUpdatedBy")
   updatedProjects       Project[]       @relation("ProjectUpdatedBy")
   updatedEntities       Entity[]        @relation("EntityUpdatedBy")
+  updatedRoles          Role[]          @relation("RoleUpdatedBy")
 
   @@map("users")
 }
@@ -82,51 +69,31 @@ enum AuditOutcome {
   failure
 }
 
-// Append-only. No updated_by, updatedAt, or deletedAt: audit rows are never
-// changed or deleted by the app (see L5). Every write goes through the writer
-// helper in src/lib/audit, never prisma.auditLog directly.
 model AuditLog {
   id BigInt @id @default(autoincrement()) @db.UnsignedBigInt
 
-  // Generated when the event happens, not when it is stored. Makes replay
-  // from the Redis/file buffer idempotent. Null only for rows written before this column.
   eventId String? @unique @map("event_id") @db.Char(36)
 
   createdAt DateTime @default(now()) @map("created_at") @db.DateTime(3)
 
   actorType AuditActorType @map("actor_type")
-  // Id of the user or api key that acted. Null for "system" and for events
-  // with an unauthenticated actor (e.g. a failed login with an unknown email).
   actorId   Int?           @map("actor_id") @db.UnsignedInt
 
-  // "resource.verb", e.g. "auth.login", "user.created", "access.revoked".
   action String @db.VarChar(100)
 
-  // What the action happened to. resourceType is always set; resourceId is
-  // null for events with no single target (e.g. a failed login).
-  // String, not Int: some resources (system_settings) use a string key.
   resourceType String  @map("resource_type") @db.VarChar(100)
   resourceId   String? @map("resource_id") @db.VarChar(191)
 
-  // Scope, used to filter what a non-admin with audit:read can see (Epic 4).
-  // No foreign keys yet: the projects/entities/environments tables don't exist
-  // until Epic 3. Add them then; a plain nullable Int is safe to keep as-is.
   projectId     Int? @map("project_id") @db.UnsignedInt
   entityId      Int? @map("entity_id") @db.UnsignedInt
   environmentId Int? @map("environment_id") @db.UnsignedInt
 
   outcome AuditOutcome @default(success)
 
-  // Field-level diff for updates. Both null for actions with nothing to diff
-  // (login, logout). Secrets are stripped before these are written, see
-  // src/lib/audit/sanitize.ts.
-  before Json?
-  after  Json?
-  // Anything else worth keeping that doesn't fit before/after, e.g. the
-  // attempted email on a failed login. Also sanitized.
+  before   Json?
+  after    Json?
   metadata Json?
 
-  // Groups every audit row written by one HTTP request.
   requestId String  @map("request_id") @db.Char(36)
   ipAddress String? @map("ip_address") @db.VarChar(45)
   userAgent String? @map("user_agent") @db.VarChar(512)
@@ -138,8 +105,6 @@ model AuditLog {
   @@map("audit_logs")
 }
 
-// Global (not per project). `key` is immutable after creation and stays
-// reserved after soft delete: the unique index covers deleted rows too.
 model Environment {
   id Int @id @default(autoincrement()) @db.UnsignedInt
 
@@ -159,9 +124,6 @@ model Environment {
   @@map("environments")
 }
 
-// Groups features and scopes access (Epic 4). `key` is immutable after
-// creation and stays reserved after soft delete: the unique index covers
-// deleted rows too.
 model Project {
   id Int @id @default(autoincrement()) @db.UnsignedInt
 
@@ -181,9 +143,6 @@ model Project {
   @@map("projects")
 }
 
-// A feature area inside one project. `project_id` and `key` are immutable
-// after creation. The unique index covers deleted rows too, so a deleted key
-// stays reserved within its project.
 model Entity {
   id Int @id @default(autoincrement()) @db.UnsignedInt
 
@@ -203,4 +162,32 @@ model Entity {
 
   @@unique([projectId, key])
   @@map("entities")
+}
+
+model Role {
+  id Int @id @default(autoincrement()) @db.UnsignedInt
+
+  key         String  @unique @db.VarChar(50)
+  name        String  @db.VarChar(100)
+  description String? @db.VarChar(500)
+
+  updatedBy Int?      @map("updated_by") @db.UnsignedInt
+  createdAt DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt DateTime  @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  deletedAt DateTime? @map("deleted_at") @db.DateTime(3)
+
+  updatedByUser User?            @relation("RoleUpdatedBy", fields: [updatedBy], references: [id], onDelete: Restrict)
+  permissions   RolePermission[]
+
+  @@map("roles")
+}
+
+model RolePermission {
+  roleId     Int    @map("role_id") @db.UnsignedInt
+  permission String @db.VarChar(50)
+
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permission])
+  @@map("role_permissions")
 }

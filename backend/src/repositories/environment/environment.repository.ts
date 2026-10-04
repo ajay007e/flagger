@@ -5,8 +5,6 @@ import type {
   UpdateEnvironmentInput,
 } from "./environment.types";
 
-/** The only place that touches the `environments` table. */
-
 const ORDER = [{ sortOrder: "asc" }, { id: "asc" }] as const;
 
 export function findAll(
@@ -26,7 +24,6 @@ export function findActiveById(
   return client.environment.findFirst({ where: { id, deletedAt: null } });
 }
 
-/** Includes soft-deleted rows (used by restore). */
 export function findAnyById(
   client: DbClient,
   id: number,
@@ -34,7 +31,6 @@ export function findAnyById(
   return client.environment.findUnique({ where: { id } });
 }
 
-/** Includes soft-deleted rows: a deleted key stays reserved. */
 export function findByKey(
   client: DbClient,
   key: string,
@@ -42,7 +38,6 @@ export function findByKey(
   return client.environment.findUnique({ where: { key } });
 }
 
-/** -1 when the table is empty, so the first environment gets sortOrder 0. */
 export async function getMaxSortOrder(client: DbClient): Promise<number> {
   const result = await client.environment.aggregate({
     where: { deletedAt: null },
