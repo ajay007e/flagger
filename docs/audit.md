@@ -62,8 +62,8 @@ await writeAuditLog(prisma, {
 `writeAuditLog` needs the database. Events that must survive an outage (system events such as `diagnosis.down`) use `recordAuditEvent` instead. It never throws:
 
 1. Write to the DB (skipped while the system is `DOWN`).
-2. Otherwise push to the Redis list `flagger:audit:pending`.
-3. Otherwise log a service-down line and append to a local JSONL file (`AUDIT_SPOOL_PATH`, capped at 5 MB).
+2. Otherwise push to the Redis list `flagger:audit:pending` and log `audit.fallback.redis` at `warn`.
+3. Otherwise append to a local JSONL file (`AUDIT_SPOOL_PATH`, capped at 5 MB) and log `audit.fallback.spool` at `warn`. If the file is full or unwritable too, log `audit.event.lost` at `error` with only the action and `eventId`, never the payload, because audit metadata can hold an attempted email.
 
 After recovery, and every 30 s while `UP`, `drainAuditEvents` replays Redis (atomic `LMOVE` to `flagger:audit:processing`, removed only after the insert), then the file. A duplicate `event_id` counts as success, so a crash mid-drain can't create duplicate rows. Unparseable payloads move to `flagger:audit:dead`.
 
@@ -73,10 +73,11 @@ Notes:
 - Replayed rows keep their original `created_at`, so `id` order is not time order. **Sort by `created_at`.**
 - Writes that commit together with a business change keep using `writeAuditLog(tx, ...)`. Those fail with the change.
 - Each instance has its own spool file. The Redis list is shared.
+- Each replay logs `audit.replay.completed` with counts (`replayed`, `duplicate`, `discarded`), but only when there was something to replay.
 
 ## Request id
 
-Every request gets a request id (`requestId` middleware in `app.ts`, registered before everything else): a client-supplied `x-request-id` header if present, otherwise a generated UUID. It is echoed back as the same response header, and every audit row written while handling that request shares it, so all the rows from one request can be found together.
+Every request gets a request id (`requestId` middleware, registered first in `app.ts`): a client-supplied `x-request-id` header if it matches `^[A-Za-z0-9_-]{8,36}$` (so it always fits the `request_id` column), otherwise a generated UUID. It is echoed back as the same response header, included in every error body, and carried on every log line from that request (see [logging.md](./logging.md)). Every audit row written while handling that request shares it, so the rows from one request can be found together and matched to the full trail of what the request did.
 
 `getRequestMeta(req, res)` reads the request id, IP address, and user agent off the request. Call it once per request (usually right where you already have `req`) and pass the result to `writeAuditLog`.
 

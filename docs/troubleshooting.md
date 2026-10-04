@@ -35,6 +35,7 @@ If you appended lines to `.env` from the terminal and it still fails, the file m
 
 - Is MySQL running? `docker compose ps` should show `healthy`. Start it with `pnpm services:up`.
 - Does `DATABASE_URL` use the right port and credentials? They must match the root `.env` (or the defaults).
+- Look for `db.connect.failed` (or `redis.connect.failed`) in the backend log. The `err` field has the error type and code.
 
 The server no longer exits when MySQL is down. It starts, stays `DOWN`, and returns 503 until MySQL is reachable. See [diagnosis.md](./diagnosis.md).
 
@@ -51,10 +52,26 @@ The backend log shows `pool timeout ... (pool connections: active=0 idle=0)` on 
 
 The frontend only reflects the backend. Run `curl -s localhost:4000/api/v1/diagnosis`:
 
-- Still `DOWN`: a dependency is failing. Check the backend log for the `[diagnosis] UP -> DOWN: ...` reason and `docker compose ps`.
+- Still `DOWN`: a dependency is failing. Check the backend log for the latest `diagnosis.status.changed` line (its `data.reason`) and the `health.check.failed` lines before it and `docker compose ps`.
 - `UP`, but the modal stays: reload the page. The poll runs every 5 s while the modal shows.
 
 Recovery takes about 15 to 30 s after a dependency is healthy (one scheduler cycle).
+
+## Find out what happened to a failed request
+
+Take the `requestId` from the error response body (or the `x-request-id` response header) and search the logs for it:
+
+```bash
+jq 'select(.requestId == "<id>")' app.log
+```
+
+You get the whole path of that request: start, controller, service, queries (at `trace`), the error, and the finish line. Match an audit row by its `request_id`. See [logging.md](./logging.md).
+
+## The logs are too noisy, or lines are missing
+
+- Too noisy: raise `LOG_LEVEL` to `info` or `warn`, or set `LOG_SCOPES` to the areas you care about. Other scopes then log `warn` and above only. Restart the backend after changing either.
+- Lines missing: `controller.*` and health check results are `debug`, and SQL is `trace`. Lower `LOG_LEVEL` to see them.
+- Redis errors repeating every few seconds while Redis is down is expected: the client reports every failed retry.
 
 ## Cannot find `@/generated/prisma/client`
 

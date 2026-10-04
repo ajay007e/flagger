@@ -44,7 +44,7 @@ In production, deploy the frontend and backend under the same site (for example 
 ## Redis connection
 
 - The backend starts even if Redis is unreachable. It stays `DOWN` and answers 503 until Redis is reachable, see [diagnosis.md](./diagnosis.md).
-- Reconnection is handled by the Redis client in the background. The client fails fast while disconnected (`disableOfflineQueue`), and a Redis outage marks the system `DOWN` immediately. It logs connection errors without crashing the process.
+- Reconnection is handled by the Redis client in the background. The client fails fast while disconnected (`disableOfflineQueue`), and a Redis outage marks the system `DOWN` immediately. It logs `redis.error` for each failure without crashing the process.
 - `/api/v1/health` and `/api/v1/diagnosis` skip the session middleware, so they work while Redis is down.
 
 ## How a session is created
@@ -65,6 +65,8 @@ On each request it loads the user fresh from the database (no caching in the ses
 
 - `UNAUTHENTICATED` — no session at all.
 - `SESSION_EXPIRED` — a session exists but the user is missing, deleted, inactive, or their stored `sessionVersion` no longer matches the session's (i.e. their password was changed or reset since this session was issued). The session is destroyed server-side in this case, not just rejected.
+
+Each rejection is logged. A missing session logs `auth.denied` with `reason: "no_session"`. A rejected session logs `session.rejected` with `reason` set to `user_missing`, `user_inactive` or `version_mismatch`, and the stored and current versions. After a valid check, `userId`, `sessionVersion` and `userType` are added to `meta` on every later log line of the request.
 
 On success, the current user (safe fields only, no password hash) is available via `getCurrentUser(res)`, read from `res.locals.currentUser`, not from `req` — same `res.locals` approach used for the request id, since it doesn't depend on Express's ambient type augmentation working correctly.
 

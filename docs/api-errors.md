@@ -3,10 +3,15 @@
 Every error response has the same shape, so the frontend can rely on it:
 
 ```json
-{ "success": false, "message": "Route not found", "code": "NOT_FOUND" }
+{
+  "success": false,
+  "message": "Route not found",
+  "code": "NOT_FOUND",
+  "requestId": "7f3c9a1e-5b2d-4c8a-9e61-0d4f2a7b8c13"
+}
 ```
 
-`message` is safe to show to a user. `code` is for the frontend to act on.
+`message` is safe to show to a user. `code` is for the frontend to act on. `requestId` is the id of the request. It is also the `x-request-id` response header and is on every log line and audit row from that request, so quote it when reporting a problem (see [logging.md](./logging.md)).
 
 ## Codes
 
@@ -24,7 +29,7 @@ Every error response has the same shape, so the frontend can rely on it:
 
 Things a user is not allowed to see return `NOT_FOUND` (not "forbidden"), so the API does not reveal that they exist.
 
-Unexpected errors always return a generic message. The real error and stack trace are logged on the server only.
+Unexpected errors always return a generic message. The real error and its stack frames are logged on the server only, as `request.error`, under the same `requestId`.
 
 ## In the backend
 
