@@ -27,5 +27,25 @@ export default tseslint.config(
     },
   },
 
+  {
+    rules: {
+      "no-console": "error",
+    },
+  },
+
+  {
+    files: ["src/config/env/env.ts"],
+    rules: {
+      "no-console": ["error", { allow: ["error"] }],
+    },
+  },
+
+  {
+    files: ["src/config/db/seed.ts"],
+    rules: {
+      "no-console": "off",
+    },
+  },
+
   prettier,
 );
