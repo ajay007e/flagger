@@ -14,6 +14,7 @@ import { environmentRepository } from "@/repositories/environment";
 import { projectRepository } from "@/repositories/project";
 import { roleRepository } from "@/repositories/role";
 import { userRepository } from "@/repositories/user";
+import type { DbClient } from "@/repositories/types";
 import {
   userAccessRepository,
   type UserAccess,
@@ -25,6 +26,7 @@ import {
 } from "./user-access.constants";
 import type {
   AssignAccessInput,
+  UpdateAccessInput,
   UserAccessAssignment,
 } from "./user-access.types";
 import { groupByAssignment } from "./user-access.utils";
@@ -43,28 +45,34 @@ function missing(resource: string, id: number): never {
   );
 }
 
+function rowShape(row: UserAccess) {
+  return {
+    roleId: row.roleId,
+    projectId: row.projectId,
+    entityId: row.entityId,
+    environmentId: row.environmentId,
+  };
+}
+
 function audit(
-  tx: Parameters<typeof writeAuditLog>[0],
+  tx: DbClient,
   actorId: number,
+  action: string,
   row: UserAccess,
   request: RequestMeta,
+  diff: { before?: unknown; after?: unknown },
 ) {
   return writeAuditLog(tx, {
     actorType: ACTOR_TYPES.USER,
     actorId,
-    action: USER_ACCESS_ACTIONS.ASSIGNED,
+    action,
     resourceType: USER_ACCESS_RESOURCE_TYPE,
     resourceId: String(row.id),
     projectId: row.projectId ?? undefined,
     entityId: row.entityId ?? undefined,
     environmentId: row.environmentId ?? undefined,
     outcome: OUTCOMES.SUCCESS,
-    after: {
-      roleId: row.roleId,
-      projectId: row.projectId,
-      entityId: row.entityId,
-      environmentId: row.environmentId,
-    },
+    ...diff,
     metadata: {
       assignmentId: row.assignmentId,
       userId: row.userId,
@@ -72,6 +80,66 @@ function audit(
     },
     request,
   });
+}
+
+function missingAssignment(assignmentId: string): never {
+  log.info(
+    "access.assignment.missing",
+    "Access request refused because no active assignment matches",
+    { data: { assignmentIdLength: assignmentId.length } },
+  );
+  throw new AppError(ERROR_CODES.NOT_FOUND, "Assignment not found");
+}
+
+async function assertTargets(
+  tx: DbClient,
+  input: {
+    roleId: number;
+    projectId: number | null;
+    entityIds: number[];
+    environmentIds: number[];
+  },
+): Promise<void> {
+  const role = await roleRepository.findActiveById(tx, input.roleId);
+
+  if (!role) {
+    return missing("role", input.roleId);
+  }
+
+  if (input.projectId !== null) {
+    const project = await projectRepository.findActiveById(tx, input.projectId);
+
+    if (!project) {
+      return missing("project", input.projectId);
+    }
+  }
+
+  for (const entityId of input.entityIds) {
+    const entity = await entityRepository.findActiveById(
+      tx,
+      input.projectId as number,
+      entityId,
+    );
+
+    if (!entity) {
+      return missing("entity", entityId);
+    }
+  }
+
+  for (const environmentId of input.environmentIds) {
+    const environment = await environmentRepository.findActiveById(
+      tx,
+      environmentId,
+    );
+
+    if (!environment) {
+      return missing("environment", environmentId);
+    }
+  }
+}
+
+function comboKey(entityId: number | null, environmentId: number | null) {
+  return `${entityId ?? "all"}:${environmentId ?? "all"}`;
 }
 
 export function assignAccess(
@@ -105,34 +173,7 @@ export function assignAccess(
       );
     }
 
-    const role = await roleRepository.findActiveById(tx, input.roleId);
-
-    if (!role) {
-      return missing("role", input.roleId);
-    }
-
-    if (input.projectId !== null) {
-      const project = await projectRepository.findActiveById(
-        tx,
-        input.projectId,
-      );
-
-      if (!project) {
-        return missing("project", input.projectId);
-      }
-    }
-
-    for (const entityId of input.entityIds) {
-      const entity = await entityRepository.findActiveById(
-        tx,
-        input.projectId as number,
-        entityId,
-      );
-
-      if (!entity) {
-        return missing("entity", entityId);
-      }
-    }
+    await assertTargets(tx, input);
 
     for (const environmentId of input.environmentIds) {
       const environment = await environmentRepository.findActiveById(
@@ -164,7 +205,9 @@ export function assignAccess(
           updatedBy: actorId,
         });
 
-        await audit(tx, actorId, row, request);
+        await audit(tx, actorId, USER_ACCESS_ACTIONS.ASSIGNED, row, request, {
+          after: rowShape(row),
+        });
         rows.push(row);
       }
     }
@@ -196,4 +239,166 @@ export async function listUserAccess(
   const rows = await userAccessRepository.findActiveByUserId(prisma, userId);
 
   return groupByAssignment(rows);
+}
+
+export function updateAccess(
+  userId: number,
+  assignmentId: string,
+  input: UpdateAccessInput,
+  actorId: number,
+  request: RequestMeta,
+): Promise<UserAccessAssignment> {
+  return prisma.$transaction(async (tx) => {
+    const rows = await userAccessRepository.findActiveByAssignment(
+      tx,
+      userId,
+      assignmentId,
+    );
+
+    if (rows.length === 0) {
+      return missingAssignment(assignmentId);
+    }
+
+    const current = groupByAssignment(rows)[0];
+    const roleId = input.roleId ?? current.roleId;
+    const entityIds = input.entityIds ?? current.entityIds;
+    const environmentIds = input.environmentIds ?? current.environmentIds;
+
+    if (entityIds.length > 0 && current.projectId === null) {
+      log.info(
+        "access.update.refused",
+        "Access update refused because entities need an assignment with a project",
+        { data: { userId, entityCount: entityIds.length } },
+      );
+      throw new AppError(
+        ERROR_CODES.VALIDATION_ERROR,
+        "entityIds: requires an assignment with a project",
+      );
+    }
+
+    await assertTargets(tx, {
+      roleId,
+      projectId: current.projectId,
+      entityIds,
+      environmentIds,
+    });
+
+    const entityTargets: (number | null)[] =
+      entityIds.length > 0 ? entityIds : [null];
+    const environmentTargets: (number | null)[] =
+      environmentIds.length > 0 ? environmentIds : [null];
+    const desired = new Set<string>();
+
+    for (const entityId of entityTargets) {
+      for (const environmentId of environmentTargets) {
+        desired.add(comboKey(entityId, environmentId));
+      }
+    }
+
+    const existing = new Set(
+      rows.map((row) => comboKey(row.entityId, row.environmentId)),
+    );
+    const result: UserAccess[] = [];
+    let removedCount = 0;
+    let addedCount = 0;
+    let roleChangedCount = 0;
+
+    for (const row of rows) {
+      if (!desired.has(comboKey(row.entityId, row.environmentId))) {
+        await userAccessRepository.softDelete(tx, row.id, actorId);
+        await audit(tx, actorId, USER_ACCESS_ACTIONS.UPDATED, row, request, {
+          before: rowShape(row),
+          after: null,
+        });
+        removedCount += 1;
+        continue;
+      }
+
+      if (row.roleId !== roleId) {
+        const updated = await userAccessRepository.updateRole(
+          tx,
+          row.id,
+          roleId,
+          actorId,
+        );
+
+        await audit(
+          tx,
+          actorId,
+          USER_ACCESS_ACTIONS.UPDATED,
+          updated,
+          request,
+          {
+            before: rowShape(row),
+            after: rowShape(updated),
+          },
+        );
+        roleChangedCount += 1;
+        result.push(updated);
+        continue;
+      }
+
+      result.push(row);
+    }
+
+    for (const entityId of entityTargets) {
+      for (const environmentId of environmentTargets) {
+        if (existing.has(comboKey(entityId, environmentId))) continue;
+
+        const row = await userAccessRepository.create(tx, {
+          assignmentId,
+          userId,
+          roleId,
+          projectId: current.projectId,
+          entityId,
+          environmentId,
+          updatedBy: actorId,
+        });
+
+        await audit(tx, actorId, USER_ACCESS_ACTIONS.UPDATED, row, request, {
+          before: null,
+          after: rowShape(row),
+        });
+        addedCount += 1;
+        result.push(row);
+      }
+    }
+
+    log.info("access.updated", "Access updated", {
+      data: { userId, addedCount, removedCount, roleChangedCount },
+    });
+
+    return groupByAssignment(result)[0];
+  });
+}
+
+export function revokeAccess(
+  userId: number,
+  assignmentId: string,
+  actorId: number,
+  request: RequestMeta,
+): Promise<void> {
+  return prisma.$transaction(async (tx) => {
+    const rows = await userAccessRepository.findActiveByAssignment(
+      tx,
+      userId,
+      assignmentId,
+    );
+
+    if (rows.length === 0) {
+      return missingAssignment(assignmentId);
+    }
+
+    for (const row of rows) {
+      await userAccessRepository.softDelete(tx, row.id, actorId);
+      await audit(tx, actorId, USER_ACCESS_ACTIONS.REVOKED, row, request, {
+        before: rowShape(row),
+        after: null,
+      });
+    }
+
+    log.info("access.revoked", "Access revoked", {
+      data: { userId, rowCount: rows.length },
+    });
+  });
 }

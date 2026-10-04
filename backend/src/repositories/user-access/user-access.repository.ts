@@ -27,3 +27,37 @@ export function findActiveByUserId(
     orderBy: { id: "asc" },
   });
 }
+
+export function findActiveByAssignment(
+  client: DbClient,
+  userId: number,
+  assignmentId: string,
+): Promise<UserAccess[]> {
+  return client.userAccess.findMany({
+    where: { userId, assignmentId, deletedAt: null },
+    orderBy: { id: "asc" },
+  });
+}
+
+export function updateRole(
+  client: DbClient,
+  id: number,
+  roleId: number,
+  updatedBy: number,
+): Promise<UserAccess> {
+  return client.userAccess.update({
+    where: { id },
+    data: { roleId, updatedBy },
+  });
+}
+
+export function softDelete(
+  client: DbClient,
+  id: number,
+  updatedBy: number,
+): Promise<UserAccess> {
+  return client.userAccess.update({
+    where: { id },
+    data: { deletedAt: new Date(), updatedBy },
+  });
+}
