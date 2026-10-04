@@ -58,8 +58,10 @@ Flagger is a full-stack feature flag system (backend + frontend) with extra feat
 - **Any `flag:*` permission implies `flag:read`.** This is computed by `withImpliedPermissions` when permissions are resolved and never stored, so seeded roles keep exactly the permissions they were given. `flag:update` means proposing a change, `flag:approve` means approving one.
 - **Role keys are immutable and stay reserved**, like the catalog keys. `role_permissions` has no base columns because its rows are only join rows and are removed with their role (cascade).
 - **Access is stored as one `user_access` row per entity and environment combination.** Rows created together share an `assignment_id` (a UUID made by the service). A null `project_id`, `entity_id` or `environment_id` means "all". `POST /users/:userId/access` takes `roleId`, `projectId`, `entityIds` and `environmentIds` (missing or empty means "all"), stores the cross product in one transaction, and `GET` returns the rows grouped by `assignmentId`.
-- **Only active users of type `user` can be given access**, because admins bypass every check. `entityIds` requires a `projectId`, and every entity must belong to that project. The role, project, entities and environments must all be active.
-- **Audit rows carry scope ids**: `project.*` sets `projectId`, `entity.*` sets `projectId` and `entityId`, `environment.*` sets `environmentId`. Environment reorder writes one `environment.updated` row per environment that moved. `access.assigned` writes one row per stored `user_access` row, with the scope ids that apply and `assignmentId`, `userId` and `roleId` in `metadata`.
+- **Only active users of type `user` can be given access**, because admins bypass every check. `entityIds` requires a `projectId`, and every entity must belong to that project. The role, project, entities and environments must all be active. `assertTargets` in the user-access service holds these checks for both assign and update.
+- **Editing an assignment diffs combinations, it does not rewrite rows.** `PATCH /users/:userId/access/:assignmentId` takes optional `roleId`, `entityIds` and `environmentIds`. Each list is the full new set, an empty list means "all", and an omitted field keeps its value. Rows whose combination dropped out are soft-deleted, new combinations are created with the same `assignment_id`, and kept rows get the new role. The project of an assignment is immutable.
+- **Revoking soft-deletes every row of the assignment.** `DELETE /users/:userId/access/:assignmentId` returns 404 for an unknown or already revoked assignment, like `PATCH`. Access is meant to be read from `user_access` on every request, so an edit or revoke applies on the user's next request.
+- **Audit rows carry scope ids**: `project.*` sets `projectId`, `entity.*` sets `projectId` and `entityId`, `environment.*` sets `environmentId`. Environment reorder writes one `environment.updated` row per environment that moved. `access.assigned`, `access.updated` and `access.revoked` write one row per `user_access` row, with the scope ids that apply and `assignmentId`, `userId` and `roleId` in `metadata`. `access.updated` has `before: null` for a created row and `after: null` for a removed row, and `access.revoked` has `after: null`.
 - **Diagnosis owns system health, the scheduler owns recovery, the frontend only reflects it.** The system boots `DOWN` and any critical error marks it `DOWN` at once. Only one fully clean scheduler cycle moves it back to `UP`; a successful request never does. While `DOWN`, the guard returns 503 and `guardedJob` skips background work.
 - **Status is per instance, in memory.** A Redis-backed status would be unreadable when Redis is down.
 - **Audit events that must survive an outage use `recordAuditEvent`** (DB, then a Redis list, then a local spool file) and are replayed after recovery. Each carries a unique `eventId` and its original timestamp. Every fallback and replay is logged.
@@ -80,7 +82,7 @@ Flagger is a full-stack feature flag system (backend + frontend) with extra feat
 - Prisma exports model types as `<Model>Model` (e.g. `UserModel`), not the bare name.
 - Flex children that truncate need `min-w-0` (this caused the Sidebar and Button overflow bugs).
 - Nested routers need `Router({ mergeParams: true })`, or `:projectId` from the parent mount is invisible to validators and controllers. The same applies to `:userId` on the user-access router.
-- `validateParams` only checks values. It doesn't replace `req.params`, so controllers still convert with `Number(req.params.id)`.
+- `validateParams` only checks values. It doesn't replace `req.params`, so controllers still convert with `Number(req.params.id)`. The user-access controller reads `assignmentId` as a plain string.
 - Server validation errors come back as one joined string (`"field: message; ..."`), not per field, so the frontend can't map them to fields. Keep the client schemas in sync with the backend ones. The log line `request.validation.failed` does carry the rejected field names.
 - There is no `GET /projects/:id`. The project page finds its project in the full list (deleted included).
 - A restored environment keeps its old `sortOrder` and can land mid-list or tie with another. The next reorder normalizes the values.
@@ -103,7 +105,7 @@ Flagger is a full-stack feature flag system (backend + frontend) with extra feat
 - The seed only adds missing role permissions (`skipDuplicates`) and never overwrites existing roles. Removing a permission from `DEFAULT_ROLES` does not remove it from an existing database.
 - `config/db/seed.ts` imports `lib/permissions` by relative path, like its `../constants` import.
 - `user_access` foreign keys are `Restrict`, so soft-deleting a role, project, entity or environment leaves its access rows in place. Whatever resolves a user's access must ignore rows whose role, project, entity or environment is deleted.
-- Assignments are not deduplicated, and there is no revoke or edit yet. Assigning the same access twice stores two assignments.
+- Assignments are not deduplicated. Assigning the same access twice stores two assignments.
 - There is no users router yet, so `/users/:userId/access` is mounted on its own in `api/v1/index.ts`. When a users module is added, mount it under that router instead.
 
 ## Current state
@@ -113,7 +115,7 @@ Flagger is a full-stack feature flag system (backend + frontend) with extra feat
 - Catalog (backend): environments, projects and entities have admin CRUD with soft delete, restore and audit logging. Environments also support reorder. The seed creates `dev`, `staging` and `production`. R6 is not implemented yet.
 - Catalog (frontend): admin screens for environments, projects and entities (see Admin routes), built on the shared `resource-list` kit. The toolbar only has "Show deleted" so far; search and filters are not built.
 - Roles (backend): permission list, `roles` and `role_permissions` tables, and the seeded Viewer, Editor, Approver and Auditor roles (R1). Role CRUD and the permission guard are not built yet.
-- Access (backend): `user_access` table and admin endpoints to assign access to a user and list a user's assignments grouped by `assignmentId` (R2). Revoking or editing an assignment, the permission resolver and the guard are not built yet, and there is no frontend.
+- Access (backend): `user_access` table and admin endpoints to assign (R2), edit and revoke (R3) a user's access, and to list a user's assignments grouped by `assignmentId`. The permission resolver and the guard are not built yet, and there is no frontend.
 - Admin area: Users, Audit and the dashboard are placeholders.
 - Needs verification: Button and Sidebar overflow fixes, Profile modal (long names, mobile widths, change-password-from-profile flow), catalog screens at mobile widths, and that the sidebar highlights Projects on `/admin/projects/[id]`
 
@@ -121,7 +123,7 @@ Flagger is a full-stack feature flag system (backend + frontend) with extra feat
 
 1. Verify the overflow fixes, Profile modal and catalog screens
 2. Search and filters in the resource toolbar (client-side first, since the lists are small)
-3. Epic 4: revoke or edit assignments, the permission resolver and guard, then R6 on the three list endpoints
+3. Epic 4: the permission resolver and guard, then R6 on the three list endpoints
 4. Show `requestId` in frontend error toasts, and later add frontend error reporting
 
 ## New resource checklist
