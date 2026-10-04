@@ -1,6 +1,6 @@
 import type { NextFunction, Request, RequestHandler, Response } from "express";
 
-import { describeFailure, getLogger } from "@/lib/logger";
+import { describeFailure, getLogger, recordRoute } from "@/lib/logger";
 
 const log = getLogger("http");
 
@@ -14,6 +14,8 @@ export function asyncHandler(
   const operation = handler.name || "anonymous";
 
   return (req, res, next) => {
+    recordRoute(req, res);
+
     const startedAt = process.hrtime.bigint();
     const elapsedMs = () =>
       Math.round(Number(process.hrtime.bigint() - startedAt) / 1e6);

@@ -2,20 +2,16 @@ import type { NextFunction, Request, Response } from "express";
 
 import { prisma } from "@/config/db";
 import { AppError, ERROR_CODES } from "@/lib/errors";
+import { getLogger, recordRoute, setLogMeta } from "@/lib/logger";
 import { destroySession, type SessionWithData } from "@/lib/session";
 import { userRepository, type User } from "@/repositories/user";
 
 import type { SessionUser } from "./auth.types";
-import { setLogMeta } from "../logger";
+
+const authLog = getLogger("auth");
+const sessionLog = getLogger("session");
 
 export interface RequireAuthOptions {
-  /**
-   * Let this route through even while the user's mustChangePassword flag is
-   * set. Only /me and /change-password should ever set this — every other
-   * route must block until the password is changed, so the default (false)
-   * is the safe one: a new route has to opt IN to being reachable mid-forced-
-   * change, rather than opting out.
-   */
   allowPasswordChange?: boolean;
 }
 
@@ -29,25 +25,6 @@ function toSessionUser(user: User): SessionUser {
   };
 }
 
-/**
- * Requires a valid session. Loads the user fresh from the database on every
- * request (no caching in the session itself), so disabling a user, deleting
- * them, or resetting their password takes effect on their very next request.
- *
- * On success, the current user is attached to res.locals.currentUser (read it
- * back with getCurrentUser(res)) — not to req, for the same res.locals reason
- * used for the request id (see src/lib/audit/request-id.ts): it sidesteps
- * ambient Express type augmentation entirely, rather than fighting it again.
- *
- * A factory, not a plain middleware, so each route can decide whether it
- * should work while the user still has to change their password:
- *
- *   router.get("/me", requireAuth({ allowPasswordChange: true }), handler);
- *   router.get("/flags", requireAuth(), handler); // blocks until it's changed
- *
- * Opt-in per route, never registered globally in app.ts — public routes like
- * /auth/login must stay reachable without a session at all.
- */
 export function requireAuth(options: RequireAuthOptions = {}) {
   return async function requireAuthMiddleware(
     req: Request,
@@ -55,9 +32,15 @@ export function requireAuth(options: RequireAuthOptions = {}) {
     next: NextFunction,
   ): Promise<void> {
     try {
+      recordRoute(req, res);
       const session = req.session as SessionWithData;
 
       if (!session.userId) {
+        authLog.warn(
+          "auth.denied",
+          "Request rejected because it has no session",
+          { data: { reason: "no_session" } },
+        );
         next(new AppError(ERROR_CODES.UNAUTHENTICATED));
         return;
       }
@@ -69,18 +52,34 @@ export function requireAuth(options: RequireAuthOptions = {}) {
 
       const user = await userRepository.findById(prisma, session.userId);
 
-      const isValid =
-        user !== null &&
-        user.isActive &&
-        user.sessionVersion === session.sessionVersion;
+      if (
+        !user ||
+        !user.isActive ||
+        user.sessionVersion !== session.sessionVersion
+      ) {
+        const reason = !user
+          ? "user_missing"
+          : !user.isActive
+            ? "user_inactive"
+            : "version_mismatch";
 
-      if (!isValid) {
+        sessionLog.warn(
+          "session.rejected",
+          `Session rejected and destroyed (${reason})`,
+          { data: { reason, currentVersion: user?.sessionVersion } },
+        );
+
         await destroySession(req);
         next(new AppError(ERROR_CODES.SESSION_EXPIRED));
         return;
       }
 
       if (user.mustChangePassword && !options.allowPasswordChange) {
+        authLog.warn(
+          "auth.denied",
+          "Request blocked because the user must change their password",
+          { data: { reason: "must_change_password" } },
+        );
         next(new AppError(ERROR_CODES.PASSWORD_CHANGE_REQUIRED));
         return;
       }
@@ -100,6 +99,11 @@ export function requireAdmin(
   next: NextFunction,
 ): void {
   if (getCurrentUser(res).type !== "admin") {
+    authLog.warn(
+      "auth.denied",
+      "Request rejected because the user is not an admin",
+      { data: { reason: "not_admin" } },
+    );
     next(new AppError(ERROR_CODES.FORBIDDEN));
     return;
   }
@@ -107,9 +111,6 @@ export function requireAdmin(
   next();
 }
 
-/** Reads the user attached by requireAuth. Only call this on a route that has
- * requireAuth in its middleware chain — it throws otherwise, on purpose,
- * since silently returning null would be an easy-to-miss bug at the call site. */
 export function getCurrentUser(res: Response): SessionUser {
   const user = res.locals.currentUser as SessionUser | undefined;
 

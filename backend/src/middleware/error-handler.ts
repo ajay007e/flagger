@@ -12,11 +12,14 @@ import {
   type ErrorCode,
   type ErrorResponse,
 } from "@/lib";
+import { cap, describeFailure, getLogger, resolveRoute } from "@/lib/logger";
 
 import {
   CLIENT_ERROR_MESSAGES,
   DEFAULT_CLIENT_ERROR_MESSAGE,
 } from "./constants";
+
+const log = getLogger("http");
 
 function sendError(
   res: Response,
@@ -24,15 +27,19 @@ function sendError(
   code: ErrorCode,
   message: string,
 ): void {
-  const body: ErrorResponse = { success: false, message, code };
+  const body: ErrorResponse = {
+    success: false,
+    message,
+    code,
+    requestId: res.locals.requestId as string | undefined,
+  };
 
   res.status(status).json(body);
 }
 
-/** Errors raised by Express itself (for example invalid JSON) carry a 4xx `status` and a `type`. */
 function getClientError(
   error: unknown,
-): { status: number; message: string } | null {
+): { status: number; message: string; type?: string } | null {
   if (typeof error !== "object" || error === null) {
     return null;
   }
@@ -45,18 +52,32 @@ function getClientError(
 
   return {
     status,
+    type: typeof type === "string" ? type : undefined,
     message:
       (typeof type === "string" && CLIENT_ERROR_MESSAGES[type]) ||
       DEFAULT_CLIENT_ERROR_MESSAGE,
   };
 }
 
-// Logged on the server only. The path is logged without the query string.
-function logError(req: Request, error: unknown): void {
-  console.error(`[error] ${req.method} ${req.path}`, error);
+function isUniqueViolation(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    (error as { code?: unknown }).code === "P2002"
+  );
 }
 
-/** The single place where every error becomes a response. Register it last. */
+function describeRequest(req: Request, res: Response) {
+  const route = resolveRoute(req, res);
+  const unmatched = route === "unmatched";
+  const path = unmatched ? cap(req.path, 200) : undefined;
+
+  return {
+    target: `${req.method} ${path ?? route}`,
+    data: { method: req.method, route, path },
+  };
+}
+
 export function errorHandler(
   error: unknown,
   req: Request,
@@ -68,20 +89,47 @@ export function errorHandler(
     return;
   }
 
+  const { target, data } = describeRequest(req, res);
+
   if (error instanceof AppError) {
-    // The guard's 503 fires on every request while DOWN; don't flood the log.
-    if (error.status >= 500 && error.code !== ERROR_CODES.SERVICE_UNAVAILABLE) {
-      logError(req, error);
+    if (error.code !== ERROR_CODES.SERVICE_UNAVAILABLE) {
+      const serverFault = error.status >= 500;
+
+      log[serverFault ? "error" : "warn"](
+        "request.error",
+        `${target} failed with ${error.code} (${error.status})`,
+        {
+          data: {
+            ...data,
+            status: error.status,
+            code: error.code,
+            errorType: error.name,
+          },
+          err: serverFault ? error : undefined,
+        },
+      );
     }
 
     sendError(res, error.status, error.code, error.message);
     return;
   }
 
-  // Infrastructure failure: block the system now, don't wait for the scheduler.
   if (isCriticalError(error)) {
     diagnosis.markDown(`${req.method} ${req.path}: ${describeError(error)}`);
-    logError(req, error);
+
+    log.error(
+      "request.error",
+      `${target} failed with an infrastructure error and the system was marked DOWN`,
+      {
+        data: {
+          ...data,
+          status: ERROR_STATUS.SERVICE_UNAVAILABLE,
+          critical: true,
+        },
+        err: error,
+      },
+    );
+
     res.set("Retry-After", String(RETRY_AFTER_SECONDS));
     sendError(
       res,
@@ -95,6 +143,21 @@ export function errorHandler(
   const clientError = getClientError(error);
 
   if (isUniqueViolation(error)) {
+    const failure = describeFailure(error);
+
+    log.warn(
+      "request.error",
+      `${target} failed because a unique constraint was violated`,
+      {
+        data: {
+          ...data,
+          status: ERROR_STATUS.CONFLICT,
+          code: failure.code,
+          errorType: failure.errorType,
+        },
+      },
+    );
+
     sendError(
       res,
       ERROR_STATUS.CONFLICT,
@@ -105,6 +168,18 @@ export function errorHandler(
   }
 
   if (clientError) {
+    log.warn(
+      "request.error",
+      `${target} was rejected with ${clientError.status}`,
+      {
+        data: {
+          ...data,
+          status: clientError.status,
+          errorType: clientError.type,
+        },
+      },
+    );
+
     sendError(
       res,
       clientError.status,
@@ -114,21 +189,15 @@ export function errorHandler(
     return;
   }
 
-  // Anything else is unexpected: log the real error, send nothing about it.
-  logError(req, error);
+  log.error("request.error", `Unhandled error while processing ${target}`, {
+    data: { ...data, status: ERROR_STATUS.INTERNAL_ERROR },
+    err: error,
+  });
 
   sendError(
     res,
     ERROR_STATUS.INTERNAL_ERROR,
     ERROR_CODES.INTERNAL_ERROR,
     DEFAULT_ERROR_MESSAGES.INTERNAL_ERROR,
-  );
-}
-
-function isUniqueViolation(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    (error as { code?: unknown }).code === "P2002"
   );
 }
