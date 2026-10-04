@@ -25,7 +25,7 @@ Flagger is a full-stack feature flag system (backend + frontend) with extra feat
 - `src/middleware/`: `request-logger`, `async-handler` (logs controller enter/exit), `validate` (`validateBody`, `validateParams`, `validateQuery`), `error-handler` (the one place errors are logged and sent; maps Prisma `P2002` to 409), `not-found`
 - `src/config/`: env (including the log settings), db, redis
 - `src/generated/prisma/` is auto-generated. Never edit or read it.
-- Models: `User`, `SystemSetting`, `AuditLog`, `Environment`, `Project`, `Entity`, `Role`, `RolePermission` (`prisma/schema.prisma`)
+- Models: `User`, `SystemSetting`, `AuditLog`, `Environment`, `Project`, `Entity`, `Role`, `RolePermission`, `UserAccess` (`prisma/schema.prisma`)
 
 ## Frontend structure
 
@@ -57,7 +57,9 @@ Flagger is a full-stack feature flag system (backend + frontend) with extra feat
 - **Permissions live in code, roles live in the DB.** `lib/permissions` is the single list (`flag:read|create|update|delete|approve`, `audit:read`). `role_permissions.permission` is a validated string, not a DB enum, so a new permission needs no migration. Every write to it goes through `assertPermissions`. Admin is a user type that bypasses all checks, not a permission.
 - **Any `flag:*` permission implies `flag:read`.** This is computed by `withImpliedPermissions` when permissions are resolved and never stored, so seeded roles keep exactly the permissions they were given. `flag:update` means proposing a change, `flag:approve` means approving one.
 - **Role keys are immutable and stay reserved**, like the catalog keys. `role_permissions` has no base columns because its rows are only join rows and are removed with their role (cascade).
-- **Audit rows carry scope ids**: `project.*` sets `projectId`, `entity.*` sets `projectId` and `entityId`, `environment.*` sets `environmentId`. Environment reorder writes one `environment.updated` row per environment that moved.
+- **Access is stored as one `user_access` row per entity and environment combination.** Rows created together share an `assignment_id` (a UUID made by the service). A null `project_id`, `entity_id` or `environment_id` means "all". `POST /users/:userId/access` takes `roleId`, `projectId`, `entityIds` and `environmentIds` (missing or empty means "all"), stores the cross product in one transaction, and `GET` returns the rows grouped by `assignmentId`.
+- **Only active users of type `user` can be given access**, because admins bypass every check. `entityIds` requires a `projectId`, and every entity must belong to that project. The role, project, entities and environments must all be active.
+- **Audit rows carry scope ids**: `project.*` sets `projectId`, `entity.*` sets `projectId` and `entityId`, `environment.*` sets `environmentId`. Environment reorder writes one `environment.updated` row per environment that moved. `access.assigned` writes one row per stored `user_access` row, with the scope ids that apply and `assignmentId`, `userId` and `roleId` in `metadata`.
 - **Diagnosis owns system health, the scheduler owns recovery, the frontend only reflects it.** The system boots `DOWN` and any critical error marks it `DOWN` at once. Only one fully clean scheduler cycle moves it back to `UP`; a successful request never does. While `DOWN`, the guard returns 503 and `guardedJob` skips background work.
 - **Status is per instance, in memory.** A Redis-backed status would be unreadable when Redis is down.
 - **Audit events that must survive an outage use `recordAuditEvent`** (DB, then a Redis list, then a local spool file) and are replayed after recovery. Each carries a unique `eventId` and its original timestamp. Every fallback and replay is logged.
@@ -77,7 +79,7 @@ Flagger is a full-stack feature flag system (backend + frontend) with extra feat
 - Tailwind classes must be written literally. Dynamic class-string construction is silently dropped by the static scanner.
 - Prisma exports model types as `<Model>Model` (e.g. `UserModel`), not the bare name.
 - Flex children that truncate need `min-w-0` (this caused the Sidebar and Button overflow bugs).
-- Nested routers need `Router({ mergeParams: true })`, or `:projectId` from the parent mount is invisible to validators and controllers.
+- Nested routers need `Router({ mergeParams: true })`, or `:projectId` from the parent mount is invisible to validators and controllers. The same applies to `:userId` on the user-access router.
 - `validateParams` only checks values. It doesn't replace `req.params`, so controllers still convert with `Number(req.params.id)`.
 - Server validation errors come back as one joined string (`"field: message; ..."`), not per field, so the frontend can't map them to fields. Keep the client schemas in sync with the backend ones. The log line `request.validation.failed` does carry the rejected field names.
 - There is no `GET /projects/:id`. The project page finds its project in the full list (deleted included).
@@ -89,7 +91,7 @@ Flagger is a full-stack feature flag system (backend + frontend) with extra feat
 - Replayed audit rows keep their original `created_at`, so `id` order is not time order. Sort audit views by `created_at`.
 - Inside `lib/diagnosis` and `lib/audit`, import from `@/lib/errors` and `@/lib/logger`, not the `@/lib` barrel, to avoid a circular import.
 - `console` is a lint error in the backend. Only the env boot error (`config/env/env.ts`) and `config/db/seed.ts` are exempt. Use `getLogger(scope)`.
-- A new log scope must be added to `LOG_SCOPES` in `config/env/log.constants.ts`. Setting `LOG_SCOPES` in `.env` limits every scope that is not listed to `warn` and above.
+- A new log scope must be added to `LOG_SCOPES` in `config/env/constant.ts`. Setting `LOG_SCOPES` in `.env` limits every scope that is not listed to `warn` and above.
 - `data` accepts primitives and arrays of primitives only. Never pass user strings, bodies or objects.
 - `instrument` wraps the exported functions of a service module and logs only top-level number and boolean arguments. Helpers inside a service file are not wrapped, so give them a decision snapshot line if they matter.
 - `asyncHandler` takes async handlers only, so a synchronous handler such as `getMe` stays outside it and has no controller lines.
@@ -100,6 +102,9 @@ Flagger is a full-stack feature flag system (backend + frontend) with extra feat
 - MySQL 8.4 auth cache: after a container restart the pool only reconnects with `allowPublicKeyRetrieval=true` (dev) or TLS (prod). See `docs/troubleshooting.md`.
 - The seed only adds missing role permissions (`skipDuplicates`) and never overwrites existing roles. Removing a permission from `DEFAULT_ROLES` does not remove it from an existing database.
 - `config/db/seed.ts` imports `lib/permissions` by relative path, like its `../constants` import.
+- `user_access` foreign keys are `Restrict`, so soft-deleting a role, project, entity or environment leaves its access rows in place. Whatever resolves a user's access must ignore rows whose role, project, entity or environment is deleted.
+- Assignments are not deduplicated, and there is no revoke or edit yet. Assigning the same access twice stores two assignments.
+- There is no users router yet, so `/users/:userId/access` is mounted on its own in `api/v1/index.ts`. When a users module is added, mount it under that router instead.
 
 ## Current state
 
@@ -107,7 +112,8 @@ Flagger is a full-stack feature flag system (backend + frontend) with extra feat
 - Logging: logger core, request context, controller and service path logging, DB and Redis logging, boundary logging for errors, validation and auth, diagnosis, audit fallback and process logging, and the `no-console` lint rule. Error responses carry `requestId`, but the frontend does not show it yet, and there is no frontend error reporting.
 - Catalog (backend): environments, projects and entities have admin CRUD with soft delete, restore and audit logging. Environments also support reorder. The seed creates `dev`, `staging` and `production`. R6 is not implemented yet.
 - Catalog (frontend): admin screens for environments, projects and entities (see Admin routes), built on the shared `resource-list` kit. The toolbar only has "Show deleted" so far; search and filters are not built.
-- Roles (backend): permission list, `roles` and `role_permissions` tables, and the seeded Viewer, Editor, Approver and Auditor roles (R1). Role CRUD, assignment to users and the permission guard are not built yet.
+- Roles (backend): permission list, `roles` and `role_permissions` tables, and the seeded Viewer, Editor, Approver and Auditor roles (R1). Role CRUD and the permission guard are not built yet.
+- Access (backend): `user_access` table and admin endpoints to assign access to a user and list a user's assignments grouped by `assignmentId` (R2). Revoking or editing an assignment, the permission resolver and the guard are not built yet, and there is no frontend.
 - Admin area: Users, Audit and the dashboard are placeholders.
 - Needs verification: Button and Sidebar overflow fixes, Profile modal (long names, mobile widths, change-password-from-profile flow), catalog screens at mobile widths, and that the sidebar highlights Projects on `/admin/projects/[id]`
 
@@ -115,7 +121,7 @@ Flagger is a full-stack feature flag system (backend + frontend) with extra feat
 
 1. Verify the overflow fixes, Profile modal and catalog screens
 2. Search and filters in the resource toolbar (client-side first, since the lists are small)
-3. Epic 4: role assignment and the permission guard, then R6 on the three list endpoints
+3. Epic 4: revoke or edit assignments, the permission resolver and guard, then R6 on the three list endpoints
 4. Show `requestId` in frontend error toasts, and later add frontend error reporting
 
 ## New resource checklist

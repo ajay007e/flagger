@@ -54,6 +54,8 @@ model User {
   updatedProjects       Project[]       @relation("ProjectUpdatedBy")
   updatedEntities       Entity[]        @relation("EntityUpdatedBy")
   updatedRoles          Role[]          @relation("RoleUpdatedBy")
+  accessAssignments UserAccess[] @relation("UserAccessUser")
+  updatedUserAccess UserAccess[] @relation("UserAccessUpdatedBy")
 
   @@map("users")
 }
@@ -120,6 +122,8 @@ model Environment {
 
   updatedByUser User? @relation("EnvironmentUpdatedBy", fields: [updatedBy], references: [id], onDelete: Restrict)
 
+  userAccess UserAccess[]
+
   @@index([sortOrder])
   @@map("environments")
 }
@@ -139,6 +143,8 @@ model Project {
   updatedByUser User? @relation("ProjectUpdatedBy", fields: [updatedBy], references: [id], onDelete: Restrict)
 
   entities Entity[]
+
+  userAccess UserAccess[]
 
   @@map("projects")
 }
@@ -160,6 +166,8 @@ model Entity {
   project       Project @relation(fields: [projectId], references: [id], onDelete: Restrict)
   updatedByUser User?   @relation("EntityUpdatedBy", fields: [updatedBy], references: [id], onDelete: Restrict)
 
+  userAccess UserAccess[]
+
   @@unique([projectId, key])
   @@map("entities")
 }
@@ -178,6 +186,7 @@ model Role {
 
   updatedByUser User?            @relation("RoleUpdatedBy", fields: [updatedBy], references: [id], onDelete: Restrict)
   permissions   RolePermission[]
+  userAccess UserAccess[]
 
   @@map("roles")
 }
@@ -190,4 +199,32 @@ model RolePermission {
 
   @@id([roleId, permission])
   @@map("role_permissions")
+}
+
+model UserAccess {
+  id Int @id @default(autoincrement()) @db.UnsignedInt
+
+  assignmentId String @map("assignment_id") @db.Char(36)
+
+  userId        Int  @map("user_id") @db.UnsignedInt
+  roleId        Int  @map("role_id") @db.UnsignedInt
+  projectId     Int? @map("project_id") @db.UnsignedInt
+  entityId      Int? @map("entity_id") @db.UnsignedInt
+  environmentId Int? @map("environment_id") @db.UnsignedInt
+
+  updatedBy Int?      @map("updated_by") @db.UnsignedInt
+  createdAt DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt DateTime  @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  deletedAt DateTime? @map("deleted_at") @db.DateTime(3)
+
+  user          User         @relation("UserAccessUser", fields: [userId], references: [id], onDelete: Restrict)
+  role          Role         @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  project       Project?     @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  entity        Entity?      @relation(fields: [entityId], references: [id], onDelete: Restrict)
+  environment   Environment? @relation(fields: [environmentId], references: [id], onDelete: Restrict)
+  updatedByUser User?        @relation("UserAccessUpdatedBy", fields: [updatedBy], references: [id], onDelete: Restrict)
+
+  @@index([assignmentId])
+  @@index([userId, deletedAt])
+  @@map("user_access")
 }
