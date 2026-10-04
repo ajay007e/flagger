@@ -1,26 +1,12 @@
-export const LOG_SCOPES = [
-  "http",
-  "auth",
-  "session",
-  "db",
-  "redis",
-  "diagnosis",
-  "audit",
-  "process",
-  "health",
-  "environments",
-  "projects",
-  "entities",
-  "users",
-] as const;
+import { LOG_SCOPES } from "@/config/constants";
+
+export { LOG_SCOPES };
 export type LogScope = (typeof LOG_SCOPES)[number];
 
 type Primitive = string | number | boolean;
 
-/** Event-specific values. Primitives and arrays of primitives only, never objects. */
 export type LogData = Record<string, Primitive | Primitive[] | undefined>;
 
-/** Context values, not for filtering. Never an email. */
 export interface LogMeta {
   userId?: number;
   sessionVersion?: number;
@@ -28,7 +14,6 @@ export interface LogMeta {
   [key: string]: Primitive | undefined;
 }
 
-/** Held in AsyncLocalStorage. `requestId` is absent for background jobs. */
 export interface LogContext {
   requestId?: string;
   traceId: string;

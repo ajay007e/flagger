@@ -7,6 +7,10 @@ import {
   NODE_ENVIRONMENTS,
   PLACEHOLDER_PREFIX,
   SECRET_MIN_LENGTH,
+  DEFAULT_SLOW_QUERY_ERROR_MS,
+  DEFAULT_SLOW_QUERY_WARN_MS,
+  LOG_LEVELS,
+  LOG_SCOPES,
 } from "../constants";
 
 const urlWithProtocol = (protocols: readonly string[]) =>
@@ -59,15 +63,25 @@ const originList = z
       "each origin must be http(s)://host[:port] with no path or trailing slash",
   });
 
-const LOG_LEVELS = [
-  "trace",
-  "debug",
-  "info",
-  "warn",
-  "error",
-  "fatal",
-  "silent",
-] as const;
+const logScopeList = z
+  .string()
+  .transform((value) =>
+    value
+      .split(",")
+      .map((scope) => scope.trim())
+      .filter(Boolean),
+  )
+  .refine(
+    (scopes) =>
+      scopes.every((scope) =>
+        (LOG_SCOPES as readonly string[]).includes(scope),
+      ),
+    { message: `each scope must be one of: ${LOG_SCOPES.join(", ")}` },
+  );
+
+const booleanFlag = z
+  .enum(["true", "false"])
+  .transform((value) => value === "true");
 
 const envSchema = z
   .object({
@@ -82,8 +96,27 @@ const envSchema = z
     // In Docker, point this at a mounted volume or it is lost with the container.
     AUDIT_SPOOL_PATH: z.string().min(1).default("var/audit-spool.jsonl"),
     LOG_LEVEL: z.enum(LOG_LEVELS).optional(),
+    LOG_SCOPES: logScopeList.optional(),
+    LOG_SYNC: booleanFlag.default(true),
+    LOG_SLOW_QUERY_WARN_MS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(DEFAULT_SLOW_QUERY_WARN_MS),
+    LOG_SLOW_QUERY_ERROR_MS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(DEFAULT_SLOW_QUERY_ERROR_MS),
   })
   .superRefine((values, ctx) => {
+    if (values.LOG_SLOW_QUERY_ERROR_MS <= values.LOG_SLOW_QUERY_WARN_MS) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["LOG_SLOW_QUERY_ERROR_MS"],
+        message: "must be greater than LOG_SLOW_QUERY_WARN_MS",
+      });
+    }
     if (values.NODE_ENV !== "production") {
       return;
     }
@@ -143,6 +176,10 @@ function loadEnv() {
     auditSpoolPath: values.AUDIT_SPOOL_PATH,
     logLevel:
       values.LOG_LEVEL ?? (values.NODE_ENV === "production" ? "info" : "debug"),
+    logScopes: values.LOG_SCOPES ?? [],
+    logSync: values.LOG_SYNC,
+    slowQueryWarnMs: values.LOG_SLOW_QUERY_WARN_MS,
+    slowQueryErrorMs: values.LOG_SLOW_QUERY_ERROR_MS,
   });
 }
 
