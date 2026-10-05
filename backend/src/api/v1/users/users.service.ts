@@ -11,15 +11,21 @@ import {
 } from "@/lib/audit";
 import { AppError, ERROR_CODES } from "@/lib/errors";
 import { getLogger } from "@/lib/logger";
-import { userRepository, type User } from "@/repositories/user";
+import { UserListItem, userRepository, type User } from "@/repositories/user";
 
 import { BCRYPT_COST } from "../auth/auth.constants";
 import { TEMP_PASSWORD_BYTES, USER_ACTIONS } from "./users.constants";
 import type {
   CreateUserInput,
   CreateUserResult,
+  ListUsersQuery,
   UserSnapshot,
 } from "./users.types";
+import {
+  getSkipTake,
+  toPaginatedData,
+  type PaginatedData,
+} from "@/lib/pagination";
 
 const log = getLogger("users");
 
@@ -88,4 +94,17 @@ export async function createUser(
 
     return { ...snapshot, temporaryPassword };
   });
+}
+
+export async function listUsers(
+  query: ListUsersQuery,
+): Promise<PaginatedData<UserListItem>> {
+  const { items, total } = await userRepository.findPage(prisma, {
+    search: query.search,
+    type: query.type,
+    status: query.status,
+    ...getSkipTake(query),
+  });
+
+  return toPaginatedData(items, total, query);
 }
