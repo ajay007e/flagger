@@ -73,3 +73,10 @@ export function update(
 export async function lockById(client: DbClient, id: number): Promise<void> {
   await client.$queryRaw`SELECT id FROM users WHERE id = ${id} FOR UPDATE`;
 }
+
+export function findByEmailIncludingDeleted(
+  client: DbClient,
+  email: string,
+): Promise<User | null> {
+  return client.user.findFirst({ where: { email } });
+}

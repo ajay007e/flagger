@@ -63,6 +63,8 @@ Flagger is a full-stack feature flag system (backend + frontend) with extra feat
 - **Editing an assignment diffs combinations, it does not rewrite rows.** `PATCH /users/:userId/access/:assignmentId` takes optional `roleId`, `entityIds` and `environmentIds`. Each list is the full new set, an empty list means "all", and an omitted field keeps its value. Rows whose combination dropped out are soft-deleted, new combinations are created with the same `assignment_id`, and kept rows get the new role. The project of an assignment is immutable.
 - **Revoking soft-deletes every row of the assignment.** `DELETE /users/:userId/access/:assignmentId` returns 404 for an unknown or already revoked assignment, like `PATCH`. Access is meant to be read from `user_access` on every request, so an edit or revoke applies on the user's next request.
 - **Audit rows carry scope ids**: `project.*` sets `projectId`, `entity.*` sets `projectId` and `entityId`, `environment.*` sets `environmentId`. Environment reorder writes one `environment.updated` row per environment that moved. `access.assigned`, `access.updated` and `access.revoked` write one row per `user_access` row, with the scope ids that apply and `assignmentId`, `userId` and `roleId` in `metadata`. `access.updated` has `before: null` for a created row and `after: null` for a removed row, and `access.revoked` has `after: null`.
+- **Users are created by admins only, with a server-generated temporary password.** `POST /users` takes `email`, `name` and `type`, trims and lowercases the email, and returns the new user plus `temporaryPassword` once, with `Cache-Control: no-store`. The password is random, bcrypt-hashed before the transaction, stored with `must_change_password = true`, and never logged. `temporaryPassword` is also in `SENSITIVE_FIELD_NAMES`, so it can't reach an audit row even by mistake. `user.created` is audited with a field-by-field snapshot of the new user.
+- **User emails stay reserved after soft delete.** Creation checks `userRepository.findByEmailIncludingDeleted`, and a duplicate returns 409 `Email already in use`. `findByEmail` ignores deleted users and is only for login and setup. The unique index covers a race between two simultaneous creates (`P2002` maps to 409).
 - **Diagnosis owns system health, the scheduler owns recovery, the frontend only reflects it.** The system boots `DOWN` and any critical error marks it `DOWN` at once. Only one fully clean scheduler cycle moves it back to `UP`; a successful request never does. While `DOWN`, the guard returns 503 and `guardedJob` skips background work.
 - **Status is per instance, in memory.** A Redis-backed status would be unreadable when Redis is down.
 - **Audit events that must survive an outage use `recordAuditEvent`** (DB, then a Redis list, then a local spool file) and are replayed after recovery. Each carries a unique `eventId` and its original timestamp. Every fallback and replay is logged.
@@ -107,7 +109,8 @@ Flagger is a full-stack feature flag system (backend + frontend) with extra feat
 - `config/db/seed.ts` imports `lib/permissions` by relative path, like its `../constants` import.
 - `user_access` foreign keys are `Restrict`, so soft-deleting a role, project, entity or environment leaves its access rows in place. Whatever resolves a user's access must ignore rows whose role, project, entity or environment is deleted.
 - `userRepository.lockById` must be the first statement in its transaction. The duplicate check relies on the lock being taken before any read, so it sees rows committed by the request it waited for.
-- There is no users router yet, so `/users/:userId/access` is mounted on its own in `api/v1/index.ts`. When a users module is added, mount it under that router instead.
+- `/users/:userId/access` is mounted inside `usersRouter` (`api/v1/users`), behind its `requireAuth(), requireAdmin` guard. Add new user routes there.
+- Use `findByEmailIncludingDeleted` for any uniqueness check on user emails. `findByEmail` hides deleted rows and would let a reserved email through.
 
 ## Current state
 
@@ -118,6 +121,7 @@ Flagger is a full-stack feature flag system (backend + frontend) with extra feat
 - Roles (backend): permission list, `roles` and `role_permissions` tables, and the seeded Viewer, Editor, Approver and Auditor roles (R1). Role CRUD and the permission guard are not built yet.
 - Access (backend): `user_access` table and admin endpoints to assign (R2), edit and revoke (R3) a user's access, and to list a user's assignments grouped by `assignmentId`. Assign and edit validate scope and reject duplicates under a user row lock (R4). The permission resolver and the guard are not built yet.
 - Access (frontend): not built. The admin UI warning when "all projects" is chosen (R4) goes with the assignment screen.
+- Users (backend): admin-only `POST /users` creates a user or admin with a temporary password (U1). Listing, editing, deactivating and resetting passwords are not built yet.
 - Admin area: Users, Audit and the dashboard are placeholders.
 - Needs verification: Button and Sidebar overflow fixes, Profile modal (long names, mobile widths, change-password-from-profile flow), catalog screens at mobile widths, and that the sidebar highlights Projects on `/admin/projects/[id]`
 
