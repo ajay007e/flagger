@@ -13,8 +13,8 @@ import type {
 const idOf = (req: Request): number => Number(req.params.id);
 
 export async function getProjects(req: Request, res: Response): Promise<void> {
-  const { includeDeleted } = req.query as unknown as ListProjectsQuery;
-  const data = await projectsService.listProjects(includeDeleted);
+  const query = req.query as unknown as ListProjectsQuery;
+  const data = await projectsService.listProjects(query);
 
   res.json({ success: true, data });
 }
@@ -64,4 +64,10 @@ export async function postRestoreProject(
   );
 
   res.json({ success: true, data, message: "Project restored" });
+}
+
+export async function getProject(req: Request, res: Response): Promise<void> {
+  const data = await projectsService.getProject(idOf(req));
+
+  res.json({ success: true, data });
 }

@@ -7,6 +7,8 @@ import {
   ENTITY_NAME_MAX_LENGTH,
 } from "./entities.constants";
 
+import { paginationQuerySchema } from "@/lib/pagination";
+
 const description = z
   .string()
   .trim()
@@ -63,7 +65,7 @@ export const entityParamsSchema = z.object({
   id: z.coerce.number().int().positive(),
 });
 
-export const listEntitiesQuerySchema = z.object({
+export const listEntitiesQuerySchema = paginationQuerySchema.extend({
   includeDeleted: z
     .enum(["true", "false"])
     .optional()

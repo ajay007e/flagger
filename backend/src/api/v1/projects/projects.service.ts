@@ -11,7 +11,12 @@ import { getLogger } from "@/lib/logger";
 import { projectRepository, type Project } from "@/repositories/project";
 
 import { PROJECT_ACTIONS, PROJECT_RESOURCE_TYPE } from "./projects.constants";
-import type { CreateProjectInput, UpdateProjectInput } from "./projects.types";
+import type {
+  CreateProjectInput,
+  ListProjectsQuery,
+  UpdateProjectInput,
+} from "./projects.types";
+import { getSkipTake, PaginatedData, toPaginatedData } from "@/lib/pagination";
 
 const log = getLogger("projects");
 
@@ -47,13 +52,15 @@ function audit(
   });
 }
 
-/**
- * Admin-only today. R6 (non-admins see only projects they can access) needs
- * Epic 4 roles/access: when that lands, filter here by the caller's accessible
- * project ids and relax the router guard on GET only.
- */
-export function listProjects(includeDeleted: boolean): Promise<Project[]> {
-  return projectRepository.findAll(prisma, { includeDeleted });
+export async function listProjects(
+  query: ListProjectsQuery,
+): Promise<PaginatedData<Project>> {
+  const { items, total } = await projectRepository.findPage(prisma, {
+    includeDeleted: query.includeDeleted,
+    ...getSkipTake(query),
+  });
+
+  return toPaginatedData(items, total, query);
 }
 
 export function createProject(
@@ -190,4 +197,19 @@ export function restoreProject(
 
     return project;
   });
+}
+
+export async function getProject(id: number): Promise<Project> {
+  const project = await projectRepository.findAnyById(prisma, id);
+
+  if (!project) {
+    log.info(
+      "project.lookup.missing",
+      "Project lookup refused because no project matches",
+      { data: { projectId: id } },
+    );
+    throw new AppError(ERROR_CODES.NOT_FOUND, "Project not found");
+  }
+
+  return project;
 }

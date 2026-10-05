@@ -5,17 +5,26 @@ import type {
   UpdateEntityInput,
 } from "./entity.types";
 
-export function findByProject(
+export async function findPageByProject(
   client: DbClient,
   projectId: number,
-  options: { includeDeleted: boolean },
-): Promise<Entity[]> {
-  return client.entity.findMany({
-    where: options.includeDeleted
-      ? { projectId }
-      : { projectId, deletedAt: null },
-    orderBy: [{ name: "asc" }, { id: "asc" }],
-  });
+  options: { includeDeleted: boolean; skip: number; take: number },
+): Promise<{ items: Entity[]; total: number }> {
+  const where = options.includeDeleted
+    ? { projectId }
+    : { projectId, deletedAt: null };
+
+  const [items, total] = await Promise.all([
+    client.entity.findMany({
+      where,
+      orderBy: [{ name: "asc" }, { id: "asc" }],
+      skip: options.skip,
+      take: options.take,
+    }),
+    client.entity.count({ where }),
+  ]);
+
+  return { items, total };
 }
 
 export function findActiveById(

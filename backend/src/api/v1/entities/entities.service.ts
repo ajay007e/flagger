@@ -12,7 +12,12 @@ import { entityRepository, type Entity } from "@/repositories/entity";
 import { projectRepository } from "@/repositories/project";
 
 import { ENTITY_ACTIONS, ENTITY_RESOURCE_TYPE } from "./entities.constants";
-import type { CreateEntityInput, UpdateEntityInput } from "./entities.types";
+import type {
+  CreateEntityInput,
+  ListEntitiesQuery,
+  UpdateEntityInput,
+} from "./entities.types";
+import { getSkipTake, PaginatedData, toPaginatedData } from "@/lib/pagination";
 
 const log = getLogger("entities");
 
@@ -65,18 +70,19 @@ async function assertProjectActive(
   }
 }
 
-/**
- * Admin-only today. R6 (non-admins see only entities they can access) needs
- * Epic 4 roles/access: when that lands, filter here by the caller's accessible
- * entity ids and relax the router guard on GET only.
- */
 export async function listEntities(
   projectId: number,
-  includeDeleted: boolean,
-): Promise<Entity[]> {
+  query: ListEntitiesQuery,
+): Promise<PaginatedData<Entity>> {
   await assertProjectActive(prisma, projectId);
 
-  return entityRepository.findByProject(prisma, projectId, { includeDeleted });
+  const { items, total } = await entityRepository.findPageByProject(
+    prisma,
+    projectId,
+    { includeDeleted: query.includeDeleted, ...getSkipTake(query) },
+  );
+
+  return toPaginatedData(items, total, query);
 }
 
 export function createEntity(
