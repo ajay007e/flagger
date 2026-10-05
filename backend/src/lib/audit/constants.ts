@@ -16,6 +16,7 @@ export const OUTCOMES = {
  */
 export const SENSITIVE_FIELD_NAMES: readonly string[] = [
   "password",
+  "temporaryPassword",
   "passwordHash",
   "hash",
   "token",
