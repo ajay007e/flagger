@@ -1,5 +1,13 @@
 import type { DbClient } from "../types";
-import type { CreateUserInput, UpdateUserInput, User } from "./user.types";
+import type { Prisma } from "@/generated/prisma/client";
+import type {
+  CreateUserInput,
+  UpdateUserInput,
+  User,
+  UserListFilters,
+  UserListItem,
+  UserStatus,
+} from "./user.types";
 
 /**
  * The only place that reads or writes the `users` table. Callers (auth.service,
@@ -79,4 +87,60 @@ export function findByEmailIncludingDeleted(
   email: string,
 ): Promise<User | null> {
   return client.user.findFirst({ where: { email } });
+}
+
+const LIST_SELECT = {
+  id: true,
+  email: true,
+  name: true,
+  type: true,
+  isActive: true,
+  mustChangePassword: true,
+  updatedBy: true,
+  createdAt: true,
+  updatedAt: true,
+  deletedAt: true,
+} as const;
+
+const LIST_ORDER = [{ createdAt: "desc" }, { id: "desc" }] as const;
+
+const STATUS_WHERE = {
+  active: { isActive: true, deletedAt: null },
+  disabled: { isActive: false, deletedAt: null },
+  deleted: { deletedAt: { not: null } },
+} satisfies Record<UserStatus, Prisma.UserWhereInput>;
+
+function buildListWhere(filters: UserListFilters): Prisma.UserWhereInput {
+  return {
+    ...(filters.status ? STATUS_WHERE[filters.status] : { deletedAt: null }),
+    ...(filters.type ? { type: filters.type } : {}),
+    ...(filters.search
+      ? {
+          OR: [
+            { email: { contains: filters.search } },
+            { name: { contains: filters.search } },
+          ],
+        }
+      : {}),
+  };
+}
+
+export async function findPage(
+  client: DbClient,
+  filters: UserListFilters,
+): Promise<{ items: UserListItem[]; total: number }> {
+  const where = buildListWhere(filters);
+
+  const [items, total] = await Promise.all([
+    client.user.findMany({
+      where,
+      select: LIST_SELECT,
+      orderBy: [...LIST_ORDER],
+      skip: filters.skip,
+      take: filters.take,
+    }),
+    client.user.count({ where }),
+  ]);
+
+  return { items, total };
 }

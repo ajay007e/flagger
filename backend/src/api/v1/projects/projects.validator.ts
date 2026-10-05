@@ -6,6 +6,7 @@ import {
   PROJECT_KEY_PATTERN,
   PROJECT_NAME_MAX_LENGTH,
 } from "./projects.constants";
+import { paginationQuerySchema } from "@/lib/pagination";
 
 const description = z
   .string()
@@ -58,7 +59,7 @@ export const projectParamsSchema = z.object({
   id: z.coerce.number().int().positive(),
 });
 
-export const listProjectsQuerySchema = z.object({
+export const listProjectsQuerySchema = paginationQuerySchema.extend({
   includeDeleted: z
     .enum(["true", "false"])
     .optional()

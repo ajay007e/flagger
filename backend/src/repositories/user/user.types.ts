@@ -28,3 +28,15 @@ export interface UpdateUserInput {
   /** Who made this change. Null for a system action. */
   updatedBy: number | null;
 }
+
+export type UserListItem = Omit<User, "password" | "sessionVersion">;
+
+export type UserStatus = "active" | "disabled" | "deleted";
+
+export interface UserListFilters {
+  search?: string;
+  type?: User["type"];
+  status?: UserStatus;
+  skip: number;
+  take: number;
+}

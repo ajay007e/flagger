@@ -14,11 +14,8 @@ const projectIdOf = (req: Request): number => Number(req.params.projectId);
 const idOf = (req: Request): number => Number(req.params.id);
 
 export async function getEntities(req: Request, res: Response): Promise<void> {
-  const { includeDeleted } = req.query as unknown as ListEntitiesQuery;
-  const data = await entitiesService.listEntities(
-    projectIdOf(req),
-    includeDeleted,
-  );
+  const query = req.query as unknown as ListEntitiesQuery;
+  const data = await entitiesService.listEntities(projectIdOf(req), query);
 
   res.json({ success: true, data });
 }

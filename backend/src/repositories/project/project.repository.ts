@@ -15,6 +15,25 @@ export function findAll(
   });
 }
 
+export async function findPage(
+  client: DbClient,
+  options: { includeDeleted: boolean; skip: number; take: number },
+): Promise<{ items: Project[]; total: number }> {
+  const where = options.includeDeleted ? {} : { deletedAt: null };
+
+  const [items, total] = await Promise.all([
+    client.project.findMany({
+      where,
+      orderBy: [{ name: "asc" }, { id: "asc" }],
+      skip: options.skip,
+      take: options.take,
+    }),
+    client.project.count({ where }),
+  ]);
+
+  return { items, total };
+}
+
 export function findActiveById(
   client: DbClient,
   id: number,

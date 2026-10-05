@@ -1,15 +1,21 @@
 import { Router } from "express";
 
 import { requireAdmin, requireAuth } from "@/lib/auth";
-import { asyncHandler, validateBody } from "@/middleware";
+import { asyncHandler, validateBody, validateQuery } from "@/middleware";
 
 import { userAccessRouter } from "../user-access";
-import { postCreateUser } from "./users.controller";
-import { createUserSchema } from "./users.validator";
+import { getUsers, postCreateUser } from "./users.controller";
+import { createUserSchema, listUsersQuerySchema } from "./users.validator";
 
 export const usersRouter = Router();
 
 usersRouter.use(requireAuth(), requireAdmin);
+
+usersRouter.get(
+  "/",
+  validateQuery(listUsersQuerySchema),
+  asyncHandler(getUsers),
+);
 
 usersRouter.post(
   "/",

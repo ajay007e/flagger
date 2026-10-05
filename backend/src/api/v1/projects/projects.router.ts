@@ -10,6 +10,7 @@ import {
 
 import {
   deleteProject,
+  getProject,
   getProjects,
   patchProject,
   postProject,
@@ -34,6 +35,13 @@ projectsRouter.get(
   validateQuery(listProjectsQuerySchema),
   asyncHandler(getProjects),
 );
+
+projectsRouter.get(
+  "/:id",
+  validateParams(projectParamsSchema),
+  asyncHandler(getProject),
+);
+
 projectsRouter.post(
   "/",
   validateBody(createProjectSchema),
