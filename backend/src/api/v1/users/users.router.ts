@@ -1,11 +1,21 @@
 import { Router } from "express";
 
 import { requireAdmin, requireAuth } from "@/lib/auth";
-import { asyncHandler, validateBody, validateQuery } from "@/middleware";
+import {
+  asyncHandler,
+  validateBody,
+  validateParams,
+  validateQuery,
+} from "@/middleware";
 
 import { userAccessRouter } from "../user-access";
-import { getUsers, postCreateUser } from "./users.controller";
-import { createUserSchema, listUsersQuerySchema } from "./users.validator";
+import { getUsers, patchUser, postCreateUser } from "./users.controller";
+import {
+  createUserSchema,
+  listUsersQuerySchema,
+  updateUserSchema,
+  userParamsSchema,
+} from "./users.validator";
 
 export const usersRouter = Router();
 
@@ -21,6 +31,13 @@ usersRouter.post(
   "/",
   validateBody(createUserSchema),
   asyncHandler(postCreateUser),
+);
+
+usersRouter.patch(
+  "/:id",
+  validateParams(userParamsSchema),
+  validateBody(updateUserSchema),
+  asyncHandler(patchUser),
 );
 
 usersRouter.use("/:userId/access", userAccessRouter);

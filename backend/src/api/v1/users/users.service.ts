@@ -19,6 +19,7 @@ import type {
   CreateUserInput,
   CreateUserResult,
   ListUsersQuery,
+  UpdateUserInput,
   UserSnapshot,
 } from "./users.types";
 import {
@@ -26,6 +27,7 @@ import {
   toPaginatedData,
   type PaginatedData,
 } from "@/lib/pagination";
+import { assertNotLastAdmin } from "./users.utils";
 
 const log = getLogger("users");
 
@@ -107,4 +109,54 @@ export async function listUsers(
   });
 
   return toPaginatedData(items, total, query);
+}
+
+export function updateUser(
+  id: number,
+  input: UpdateUserInput,
+  actorId: number,
+  request: RequestMeta,
+): Promise<UserSnapshot> {
+  return prisma.$transaction(async (tx) => {
+    if (input.type === "user") await assertNotLastAdmin(tx, id);
+
+    const before = await userRepository.findById(tx, id);
+
+    if (!before) {
+      log.info(
+        "users.lookup.missing",
+        "User update refused because no active or disabled user matches",
+        { data: { userId: id } },
+      );
+      throw new AppError(ERROR_CODES.NOT_FOUND, "User not found");
+    }
+
+    const changed =
+      (input.name !== undefined && input.name !== before.name) ||
+      (input.type !== undefined && input.type !== before.type);
+
+    if (!changed) return toSnapshot(before);
+
+    const user = await userRepository.update(tx, id, {
+      name: input.name,
+      type: input.type,
+      updatedBy: actorId,
+    });
+
+    const after = toSnapshot(user);
+
+    await writeAuditLog(tx, {
+      actorType: ACTOR_TYPES.USER,
+      actorId,
+      action: USER_ACTIONS.UPDATED,
+      resourceType: "user",
+      resourceId: String(user.id),
+      outcome: OUTCOMES.SUCCESS,
+      before: toSnapshot(before),
+      after,
+      request,
+    });
+
+    return after;
+  });
 }
