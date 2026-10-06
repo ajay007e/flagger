@@ -1,7 +1,3 @@
-import { randomBytes } from "node:crypto";
-
-import bcrypt from "bcrypt";
-
 import { prisma } from "@/config/db";
 import {
   ACTOR_TYPES,
@@ -13,12 +9,12 @@ import { AppError, ERROR_CODES } from "@/lib/errors";
 import { getLogger } from "@/lib/logger";
 import { UserListItem, userRepository, type User } from "@/repositories/user";
 
-import { BCRYPT_COST } from "../auth/auth.constants";
-import { TEMP_PASSWORD_BYTES, USER_ACTIONS } from "./users.constants";
+import { USER_ACTIONS } from "./users.constants";
 import type {
   CreateUserInput,
   CreateUserResult,
   ListUsersQuery,
+  ResetPasswordResult,
   UpdateUserInput,
   UserSnapshot,
 } from "./users.types";
@@ -27,7 +23,7 @@ import {
   toPaginatedData,
   type PaginatedData,
 } from "@/lib/pagination";
-import { assertNotLastAdmin } from "./users.utils";
+import { assertNotLastAdmin, generateTemporaryPassword } from "./users.utils";
 
 const log = getLogger("users");
 
@@ -47,9 +43,8 @@ export async function createUser(
   actorId: number,
   request: RequestMeta,
 ): Promise<CreateUserResult> {
-  const temporaryPassword =
-    randomBytes(TEMP_PASSWORD_BYTES).toString("base64url");
-  const password = await bcrypt.hash(temporaryPassword, BCRYPT_COST);
+  const { temporaryPassword, hash: password } =
+    await generateTemporaryPassword();
 
   return prisma.$transaction(async (tx) => {
     const existing = await userRepository.findByEmailIncludingDeleted(
@@ -221,4 +216,44 @@ export function enableUser(
   request: RequestMeta,
 ): Promise<UserSnapshot> {
   return setActive(id, true, actorId, request);
+}
+
+export async function resetPassword(
+  id: number,
+  actorId: number,
+  request: RequestMeta,
+): Promise<ResetPasswordResult> {
+  const { temporaryPassword, hash } = await generateTemporaryPassword();
+
+  return prisma.$transaction(async (tx) => {
+    const before = await userRepository.findById(tx, id);
+
+    if (!before) {
+      log.info(
+        "users.lookup.missing",
+        "Password reset refused because no active or disabled user matches",
+        { data: { userId: id } },
+      );
+      throw new AppError(ERROR_CODES.NOT_FOUND, "User not found");
+    }
+
+    const user = await userRepository.update(tx, id, {
+      password: hash,
+      mustChangePassword: true,
+      sessionVersion: before.sessionVersion + 1,
+      updatedBy: actorId,
+    });
+
+    await writeAuditLog(tx, {
+      actorType: ACTOR_TYPES.USER,
+      actorId,
+      action: USER_ACTIONS.PASSWORD_RESET,
+      resourceType: "user",
+      resourceId: String(user.id),
+      outcome: OUTCOMES.SUCCESS,
+      request,
+    });
+
+    return { ...toSnapshot(user), temporaryPassword };
+  });
 }

@@ -22,3 +22,7 @@ export interface UserSnapshot {
 export interface CreateUserResult extends UserSnapshot {
   temporaryPassword: string;
 }
+
+export interface ResetPasswordResult extends UserSnapshot {
+  temporaryPassword: string;
+}

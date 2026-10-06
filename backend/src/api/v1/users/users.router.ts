@@ -15,6 +15,7 @@ import {
   postCreateUser,
   postDisableUser,
   postEnableUser,
+  postResetPassword,
 } from "./users.controller";
 import {
   createUserSchema,
@@ -55,6 +56,12 @@ usersRouter.post(
   "/:id/enable",
   validateParams(userParamsSchema),
   asyncHandler(postEnableUser),
+);
+
+usersRouter.post(
+  "/:id/reset-password",
+  validateParams(userParamsSchema),
+  asyncHandler(postResetPassword),
 );
 
 usersRouter.use("/:userId/access", userAccessRouter);

@@ -70,3 +70,17 @@ export async function postEnableUser(
 
   res.json({ success: true, data, message: "User enabled" });
 }
+
+export async function postResetPassword(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  const data = await usersService.resetPassword(
+    Number(req.params.id),
+    getCurrentUser(res).id,
+    getRequestMeta(req, res),
+  );
+
+  res.setHeader("Cache-Control", "no-store");
+  res.json({ success: true, data, message: "Password reset" });
+}
