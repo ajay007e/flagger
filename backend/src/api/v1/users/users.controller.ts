@@ -84,3 +84,26 @@ export async function postResetPassword(
   res.setHeader("Cache-Control", "no-store");
   res.json({ success: true, data, message: "Password reset" });
 }
+
+export async function deleteUser(req: Request, res: Response): Promise<void> {
+  await usersService.deleteUser(
+    Number(req.params.id),
+    getCurrentUser(res).id,
+    getRequestMeta(req, res),
+  );
+
+  res.json({ success: true, message: "User deleted" });
+}
+
+export async function postRestoreUser(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  const data = await usersService.restoreUser(
+    Number(req.params.id),
+    getCurrentUser(res).id,
+    getRequestMeta(req, res),
+  );
+
+  res.json({ success: true, data, message: "User restored" });
+}

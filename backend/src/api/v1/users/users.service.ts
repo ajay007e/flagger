@@ -35,6 +35,7 @@ function toSnapshot(user: User): UserSnapshot {
     type: user.type,
     isActive: user.isActive,
     mustChangePassword: user.mustChangePassword,
+    deletedAt: user.deletedAt,
   };
 }
 
@@ -255,5 +256,87 @@ export async function resetPassword(
     });
 
     return { ...toSnapshot(user), temporaryPassword };
+  });
+}
+
+export function deleteUser(
+  id: number,
+  actorId: number,
+  request: RequestMeta,
+): Promise<void> {
+  return prisma.$transaction(async (tx) => {
+    await assertNotLastAdmin(tx, id);
+
+    const before = await userRepository.findById(tx, id);
+
+    if (!before) {
+      log.info(
+        "users.lookup.missing",
+        "User delete refused because no active or disabled user matches",
+        { data: { userId: id } },
+      );
+      throw new AppError(ERROR_CODES.NOT_FOUND, "User not found");
+    }
+
+    const user = await userRepository.softDelete(
+      tx,
+      id,
+      before.sessionVersion + 1,
+      actorId,
+    );
+
+    await writeAuditLog(tx, {
+      actorType: ACTOR_TYPES.USER,
+      actorId,
+      action: USER_ACTIONS.DELETED,
+      resourceType: "user",
+      resourceId: String(user.id),
+      outcome: OUTCOMES.SUCCESS,
+      before: toSnapshot(before),
+      after: toSnapshot(user),
+      request,
+    });
+  });
+}
+
+export function restoreUser(
+  id: number,
+  actorId: number,
+  request: RequestMeta,
+): Promise<UserSnapshot> {
+  return prisma.$transaction(async (tx) => {
+    const before = await userRepository.findAnyById(tx, id);
+
+    if (!before || !before.deletedAt) {
+      log.info(
+        "users.restore.refused",
+        "User restore refused because it was not found or is not deleted",
+        {
+          data: {
+            userId: id,
+            found: Boolean(before),
+            deleted: Boolean(before?.deletedAt),
+          },
+        },
+      );
+      throw new AppError(ERROR_CODES.NOT_FOUND, "Deleted user not found");
+    }
+
+    const user = await userRepository.restore(tx, id, actorId);
+    const after = toSnapshot(user);
+
+    await writeAuditLog(tx, {
+      actorType: ACTOR_TYPES.USER,
+      actorId,
+      action: USER_ACTIONS.RESTORED,
+      resourceType: "user",
+      resourceId: String(user.id),
+      outcome: OUTCOMES.SUCCESS,
+      before: toSnapshot(before),
+      after,
+      request,
+    });
+
+    return after;
   });
 }

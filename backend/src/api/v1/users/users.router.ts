@@ -10,12 +10,14 @@ import {
 
 import { userAccessRouter } from "../user-access";
 import {
+  deleteUser,
   getUsers,
   patchUser,
   postCreateUser,
   postDisableUser,
   postEnableUser,
   postResetPassword,
+  postRestoreUser,
 } from "./users.controller";
 import {
   createUserSchema,
@@ -62,6 +64,17 @@ usersRouter.post(
   "/:id/reset-password",
   validateParams(userParamsSchema),
   asyncHandler(postResetPassword),
+);
+
+usersRouter.delete(
+  "/:id",
+  validateParams(userParamsSchema),
+  asyncHandler(deleteUser),
+);
+usersRouter.post(
+  "/:id/restore",
+  validateParams(userParamsSchema),
+  asyncHandler(postRestoreUser),
 );
 
 usersRouter.use("/:userId/access", userAccessRouter);

@@ -17,6 +17,7 @@ export interface UserSnapshot {
   type: string;
   isActive: boolean;
   mustChangePassword: boolean;
+  deletedAt: Date | null;
 }
 
 export interface CreateUserResult extends UserSnapshot {
