@@ -3,8 +3,8 @@ export const USER_ACTIONS = {
   UPDATED: "user.updated",
   DISABLED: "user.disabled",
   ENABLED: "user.enabled",
+  PASSWORD_RESET: "user.password_reset",
 } as const;
-
 export const TEMP_PASSWORD_BYTES = 12;
 export const USER_EMAIL_MAX_LENGTH = 255;
 export const USER_NAME_MAX_LENGTH = 255;

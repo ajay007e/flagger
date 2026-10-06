@@ -1,3 +1,9 @@
+import { randomBytes } from "node:crypto";
+
+import bcrypt from "bcrypt";
+
+import { BCRYPT_COST } from "../auth/auth.constants";
+import { TEMP_PASSWORD_BYTES } from "./users.constants";
 import type { AuditClient } from "@/lib/audit";
 import { AppError, ERROR_CODES } from "@/lib/errors";
 import { getLogger } from "@/lib/logger";
@@ -19,4 +25,15 @@ export async function assertNotLastAdmin(
     );
     throw new AppError(ERROR_CODES.LAST_ADMIN);
   }
+}
+
+export async function generateTemporaryPassword(): Promise<{
+  temporaryPassword: string;
+  hash: string;
+}> {
+  const temporaryPassword =
+    randomBytes(TEMP_PASSWORD_BYTES).toString("base64url");
+  const hash = await bcrypt.hash(temporaryPassword, BCRYPT_COST);
+
+  return { temporaryPassword, hash };
 }
