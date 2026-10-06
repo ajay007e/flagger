@@ -144,3 +144,13 @@ export async function findPage(
 
   return { items, total };
 }
+
+export async function lockActiveAdminIds(client: DbClient): Promise<number[]> {
+  const rows = await client.$queryRaw<{ id: number | bigint }[]>`
+    SELECT id FROM users
+    WHERE type = 'admin' AND is_active = 1 AND deleted_at IS NULL
+    ORDER BY id
+    FOR UPDATE`;
+
+  return rows.map((row) => Number(row.id));
+}

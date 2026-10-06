@@ -13,6 +13,7 @@ export const ERROR_CODES = {
   FORBIDDEN: "FORBIDDEN",
   SERVICE_UNAVAILABLE: "SERVICE_UNAVAILABLE",
   INTERNAL_ERROR: "INTERNAL_ERROR",
+  LAST_ADMIN: "LAST_ADMIN",
 } as const;
 
 /** Default HTTP status for each code. */
@@ -26,6 +27,7 @@ export const ERROR_STATUS = {
   FORBIDDEN: 403,
   SERVICE_UNAVAILABLE: 503,
   INTERNAL_ERROR: 500,
+  LAST_ADMIN: 409,
 } as const satisfies Record<keyof typeof ERROR_CODES, number>;
 
 /** Safe default message for each code. */
@@ -39,4 +41,5 @@ export const DEFAULT_ERROR_MESSAGES = {
   FORBIDDEN: "You do not have permission to do this",
   SERVICE_UNAVAILABLE: "Service is temporarily unavailable.",
   INTERNAL_ERROR: "Something went wrong",
+  LAST_ADMIN: "At least one active admin must remain",
 } as const satisfies Record<keyof typeof ERROR_CODES, string>;
