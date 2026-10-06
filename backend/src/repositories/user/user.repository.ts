@@ -154,3 +154,33 @@ export async function lockActiveAdminIds(client: DbClient): Promise<number[]> {
 
   return rows.map((row) => Number(row.id));
 }
+
+export function findAnyById(
+  client: DbClient,
+  id: number,
+): Promise<User | null> {
+  return client.user.findUnique({ where: { id } });
+}
+
+export function softDelete(
+  client: DbClient,
+  id: number,
+  sessionVersion: number,
+  updatedBy: number,
+): Promise<User> {
+  return client.user.update({
+    where: { id },
+    data: { deletedAt: new Date(), sessionVersion, updatedBy },
+  });
+}
+
+export function restore(
+  client: DbClient,
+  id: number,
+  updatedBy: number,
+): Promise<User> {
+  return client.user.update({
+    where: { id },
+    data: { deletedAt: null, updatedBy },
+  });
+}
