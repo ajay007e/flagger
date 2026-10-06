@@ -9,6 +9,28 @@ import {
 } from "./users.constants";
 import { paginationQuerySchema } from "@/lib/pagination";
 
+const name = z
+  .string()
+  .trim()
+  .min(1, "is required")
+  .max(
+    USER_NAME_MAX_LENGTH,
+    `must be at most ${USER_NAME_MAX_LENGTH} characters`,
+  );
+
+export const userParamsSchema = z.object({
+  id: z.coerce.number().int().positive(),
+});
+
+export const updateUserSchema = z
+  .strictObject({
+    name: name.optional(),
+    type: z.enum(USER_TYPES).optional(),
+  })
+  .refine((data) => Object.keys(data).length > 0, {
+    message: "at least one field is required",
+  });
+
 export const createUserSchema = z.object({
   email: z
     .string()
@@ -19,14 +41,7 @@ export const createUserSchema = z.object({
       `must be at most ${USER_EMAIL_MAX_LENGTH} characters`,
     )
     .email("must be a valid email address"),
-  name: z
-    .string()
-    .trim()
-    .min(1, "is required")
-    .max(
-      USER_NAME_MAX_LENGTH,
-      `must be at most ${USER_NAME_MAX_LENGTH} characters`,
-    ),
+  name: name,
   type: z.enum(USER_TYPES),
 });
 
