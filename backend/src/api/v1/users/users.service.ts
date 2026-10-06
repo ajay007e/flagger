@@ -160,3 +160,65 @@ export function updateUser(
     return after;
   });
 }
+
+function setActive(
+  id: number,
+  isActive: boolean,
+  actorId: number,
+  request: RequestMeta,
+): Promise<UserSnapshot> {
+  return prisma.$transaction(async (tx) => {
+    if (!isActive) await assertNotLastAdmin(tx, id);
+
+    const before = await userRepository.findById(tx, id);
+
+    if (!before) {
+      log.info(
+        "users.lookup.missing",
+        "User status change refused because no active or disabled user matches",
+        { data: { userId: id } },
+      );
+      throw new AppError(ERROR_CODES.NOT_FOUND, "User not found");
+    }
+
+    if (before.isActive === isActive) return toSnapshot(before);
+
+    const user = await userRepository.update(tx, id, {
+      isActive,
+      sessionVersion: isActive ? undefined : before.sessionVersion + 1,
+      updatedBy: actorId,
+    });
+
+    const after = toSnapshot(user);
+
+    await writeAuditLog(tx, {
+      actorType: ACTOR_TYPES.USER,
+      actorId,
+      action: isActive ? USER_ACTIONS.ENABLED : USER_ACTIONS.DISABLED,
+      resourceType: "user",
+      resourceId: String(user.id),
+      outcome: OUTCOMES.SUCCESS,
+      before: toSnapshot(before),
+      after,
+      request,
+    });
+
+    return after;
+  });
+}
+
+export function disableUser(
+  id: number,
+  actorId: number,
+  request: RequestMeta,
+): Promise<UserSnapshot> {
+  return setActive(id, false, actorId, request);
+}
+
+export function enableUser(
+  id: number,
+  actorId: number,
+  request: RequestMeta,
+): Promise<UserSnapshot> {
+  return setActive(id, true, actorId, request);
+}

@@ -9,7 +9,13 @@ import {
 } from "@/middleware";
 
 import { userAccessRouter } from "../user-access";
-import { getUsers, patchUser, postCreateUser } from "./users.controller";
+import {
+  getUsers,
+  patchUser,
+  postCreateUser,
+  postDisableUser,
+  postEnableUser,
+} from "./users.controller";
 import {
   createUserSchema,
   listUsersQuerySchema,
@@ -38,6 +44,17 @@ usersRouter.patch(
   validateParams(userParamsSchema),
   validateBody(updateUserSchema),
   asyncHandler(patchUser),
+);
+
+usersRouter.post(
+  "/:id/disable",
+  validateParams(userParamsSchema),
+  asyncHandler(postDisableUser),
+);
+usersRouter.post(
+  "/:id/enable",
+  validateParams(userParamsSchema),
+  asyncHandler(postEnableUser),
 );
 
 usersRouter.use("/:userId/access", userAccessRouter);
