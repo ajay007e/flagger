@@ -1,6 +1,8 @@
 export const USER_ACTIONS = {
   CREATED: "user.created",
   UPDATED: "user.updated",
+  DISABLED: "user.disabled",
+  ENABLED: "user.enabled",
 } as const;
 
 export const TEMP_PASSWORD_BYTES = 12;

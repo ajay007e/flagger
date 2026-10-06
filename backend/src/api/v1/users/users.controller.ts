@@ -44,3 +44,29 @@ export async function patchUser(req: Request, res: Response): Promise<void> {
 
   res.json({ success: true, data });
 }
+
+export async function postDisableUser(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  const data = await usersService.disableUser(
+    Number(req.params.id),
+    getCurrentUser(res).id,
+    getRequestMeta(req, res),
+  );
+
+  res.json({ success: true, data, message: "User disabled" });
+}
+
+export async function postEnableUser(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  const data = await usersService.enableUser(
+    Number(req.params.id),
+    getCurrentUser(res).id,
+    getRequestMeta(req, res),
+  );
+
+  res.json({ success: true, data, message: "User enabled" });
+}
