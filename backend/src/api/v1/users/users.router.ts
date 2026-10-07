@@ -1,6 +1,4 @@
-import { Router } from "express";
-
-import { requireAdmin, requireAuth } from "@/lib/auth";
+import { adminOnly, secureRouter } from "@/lib/authorization";
 import {
   asyncHandler,
   validateBody,
@@ -26,55 +24,58 @@ import {
   userParamsSchema,
 } from "./users.validator";
 
-export const usersRouter = Router();
+const secure = secureRouter();
 
-usersRouter.use(requireAuth(), requireAdmin);
+export const usersRouter = secure.router;
 
-usersRouter.get(
+secure.get(
   "/",
+  adminOnly,
   validateQuery(listUsersQuerySchema),
   asyncHandler(getUsers),
 );
-
-usersRouter.post(
+secure.post(
   "/",
+  adminOnly,
   validateBody(createUserSchema),
   asyncHandler(postCreateUser),
 );
-
-usersRouter.patch(
+secure.patch(
   "/:id",
+  adminOnly,
   validateParams(userParamsSchema),
   validateBody(updateUserSchema),
   asyncHandler(patchUser),
 );
-
-usersRouter.post(
+secure.post(
   "/:id/disable",
+  adminOnly,
   validateParams(userParamsSchema),
   asyncHandler(postDisableUser),
 );
-usersRouter.post(
+secure.post(
   "/:id/enable",
+  adminOnly,
   validateParams(userParamsSchema),
   asyncHandler(postEnableUser),
 );
-
-usersRouter.post(
+secure.post(
   "/:id/reset-password",
+  adminOnly,
   validateParams(userParamsSchema),
   asyncHandler(postResetPassword),
 );
-
-usersRouter.delete(
+secure.delete(
   "/:id",
+  adminOnly,
   validateParams(userParamsSchema),
   asyncHandler(deleteUser),
 );
-usersRouter.post(
+secure.post(
   "/:id/restore",
+  adminOnly,
   validateParams(userParamsSchema),
   asyncHandler(postRestoreUser),
 );
 
-usersRouter.use("/:userId/access", userAccessRouter);
+secure.router.use("/:userId/access", userAccessRouter);

@@ -3,6 +3,7 @@ import type {
   CreateUserAccessInput,
   FindDuplicateAccessInput,
   UserAccess,
+  UserAccessGrant,
 } from "./user-access.types";
 
 export function create(
@@ -83,4 +84,37 @@ export function findActiveDuplicate(
         : {}),
     },
   });
+}
+
+export async function findActiveGrantsByUserId(
+  client: DbClient,
+  userId: number,
+): Promise<UserAccessGrant[]> {
+  const rows = await client.userAccess.findMany({
+    where: {
+      userId,
+      deletedAt: null,
+      role: { deletedAt: null },
+      AND: [
+        { OR: [{ projectId: null }, { project: { deletedAt: null } }] },
+        { OR: [{ entityId: null }, { entity: { deletedAt: null } }] },
+        {
+          OR: [{ environmentId: null }, { environment: { deletedAt: null } }],
+        },
+      ],
+    },
+    select: {
+      projectId: true,
+      entityId: true,
+      environmentId: true,
+      role: { select: { permissions: { select: { permission: true } } } },
+    },
+  });
+
+  return rows.map((row) => ({
+    projectId: row.projectId,
+    entityId: row.entityId,
+    environmentId: row.environmentId,
+    permissions: row.role.permissions.map((p) => p.permission),
+  }));
 }

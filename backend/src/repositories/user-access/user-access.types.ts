@@ -20,3 +20,10 @@ export interface FindDuplicateAccessInput {
   environmentId: number | null;
   excludeAssignmentId?: string;
 }
+
+export interface UserAccessGrant {
+  projectId: number | null;
+  entityId: number | null;
+  environmentId: number | null;
+  permissions: string[];
+}

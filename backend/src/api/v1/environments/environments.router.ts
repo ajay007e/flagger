@@ -1,6 +1,4 @@
-import { Router } from "express";
-
-import { requireAdmin, requireAuth } from "@/lib/auth";
+import { adminOnly, secureRouter } from "@/lib/authorization";
 import {
   asyncHandler,
   validateBody,
@@ -24,39 +22,44 @@ import {
   updateEnvironmentSchema,
 } from "./environments.validator";
 
-export const environmentsRouter = Router();
+const secure = secureRouter();
 
-// Admin-only for every route. R6 will relax GET only, once Epic 4 lands.
-environmentsRouter.use(requireAuth(), requireAdmin);
+export const environmentsRouter = secure.router;
 
-environmentsRouter.get(
+secure.get(
   "/",
+  adminOnly,
   validateQuery(listEnvironmentsQuerySchema),
   asyncHandler(getEnvironments),
 );
-environmentsRouter.post(
+secure.post(
   "/",
+  adminOnly,
   validateBody(createEnvironmentSchema),
   asyncHandler(postEnvironment),
 );
-environmentsRouter.put(
+secure.put(
   "/order",
+  adminOnly,
   validateBody(reorderEnvironmentsSchema),
   asyncHandler(putEnvironmentOrder),
 );
-environmentsRouter.patch(
+secure.patch(
   "/:id",
+  adminOnly,
   validateParams(environmentParamsSchema),
   validateBody(updateEnvironmentSchema),
   asyncHandler(patchEnvironment),
 );
-environmentsRouter.delete(
+secure.delete(
   "/:id",
+  adminOnly,
   validateParams(environmentParamsSchema),
   asyncHandler(deleteEnvironment),
 );
-environmentsRouter.post(
+secure.post(
   "/:id/restore",
+  adminOnly,
   validateParams(environmentParamsSchema),
   asyncHandler(postRestoreEnvironment),
 );
