@@ -1,14 +1,24 @@
 export {
+  canSee,
+  decide,
   hasPermission,
   resolveEntityScope,
   resolveScope,
+  type AccessDecision,
   type AccessUser,
 } from "./access";
 export { authorize } from "./middleware";
 export { isAllowed } from "./resolver";
-export { adminOnly, requires, scoped } from "./rules";
+export {
+  adminOnly,
+  adminOnlyHidden,
+  adminOnlyOn,
+  requires,
+  scoped,
+} from "./rules";
 export {
   entityScopeIds,
+  isVisible,
   scopeIds,
   scopeWhere,
   toIdFilter,

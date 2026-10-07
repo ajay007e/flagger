@@ -16,7 +16,7 @@ export interface AccessGrant {
 }
 
 export type AccessRule =
-  | { kind: "admin" }
+  | { kind: "admin"; visibility?: "hidden" | ((req: Request) => AccessTarget) }
   | { kind: "scoped" }
   | {
       kind: "permission";

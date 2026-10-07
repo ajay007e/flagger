@@ -1,4 +1,4 @@
-import { adminOnly, secureRouter } from "@/lib/authorization";
+import { adminOnly, adminOnlyHidden, secureRouter } from "@/lib/authorization";
 import {
   asyncHandler,
   validateBody,
@@ -42,38 +42,38 @@ secure.post(
 );
 secure.patch(
   "/:id",
-  adminOnly,
+  adminOnlyHidden,
   validateParams(userParamsSchema),
   validateBody(updateUserSchema),
   asyncHandler(patchUser),
 );
 secure.post(
   "/:id/disable",
-  adminOnly,
+  adminOnlyHidden,
   validateParams(userParamsSchema),
   asyncHandler(postDisableUser),
 );
 secure.post(
   "/:id/enable",
-  adminOnly,
+  adminOnlyHidden,
   validateParams(userParamsSchema),
   asyncHandler(postEnableUser),
 );
 secure.post(
   "/:id/reset-password",
-  adminOnly,
+  adminOnlyHidden,
   validateParams(userParamsSchema),
   asyncHandler(postResetPassword),
 );
 secure.delete(
   "/:id",
-  adminOnly,
+  adminOnlyHidden,
   validateParams(userParamsSchema),
   asyncHandler(deleteUser),
 );
 secure.post(
   "/:id/restore",
-  adminOnly,
+  adminOnlyHidden,
   validateParams(userParamsSchema),
   asyncHandler(postRestoreUser),
 );

@@ -1,4 +1,9 @@
-import { adminOnly, scoped, secureRouter } from "@/lib/authorization";
+import {
+  adminOnly,
+  adminOnlyOn,
+  scoped,
+  secureRouter,
+} from "@/lib/authorization";
 import {
   asyncHandler,
   validateBody,
@@ -25,6 +30,10 @@ import { entitiesRouter } from "../entities";
 
 const secure = secureRouter();
 
+const onProject = adminOnlyOn((req) => ({
+  projectId: Number(req.params.id),
+}));
+
 export const projectsRouter = secure.router;
 
 secure.get(
@@ -47,20 +56,20 @@ secure.post(
 );
 secure.patch(
   "/:id",
-  adminOnly,
+  onProject,
   validateParams(projectParamsSchema),
   validateBody(updateProjectSchema),
   asyncHandler(patchProject),
 );
 secure.delete(
   "/:id",
-  adminOnly,
+  onProject,
   validateParams(projectParamsSchema),
   asyncHandler(deleteProject),
 );
 secure.post(
   "/:id/restore",
-  adminOnly,
+  onProject,
   validateParams(projectParamsSchema),
   asyncHandler(postRestoreProject),
 );

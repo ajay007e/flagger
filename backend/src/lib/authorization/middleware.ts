@@ -4,10 +4,18 @@ import { getCurrentUser, requireAdmin } from "@/lib/auth";
 import { AppError, ERROR_CODES } from "@/lib/errors";
 import { getLogger, recordRoute } from "@/lib/logger";
 
-import { hasPermission } from "./access";
+import { canSee, decide } from "./access";
 import type { AccessRule } from "./types";
 
 const log = getLogger("authorization");
+
+function hidden(): AppError {
+  log.info(
+    "authorization.hidden",
+    "Request answered as not found because the resource is not visible to the user",
+  );
+  return new AppError(ERROR_CODES.NOT_FOUND);
+}
 
 export function authorize(rule: AccessRule | undefined): RequestHandler {
   if (!rule) {
@@ -22,9 +30,27 @@ export function authorize(rule: AccessRule | undefined): RequestHandler {
   }
 
   if (rule.kind === "admin") {
-    return (req, res, next) => {
-      recordRoute(req, res);
-      requireAdmin(req, res, next);
+    const { visibility } = rule;
+
+    return async (req, res, next) => {
+      try {
+        recordRoute(req, res);
+
+        const user = getCurrentUser(res);
+
+        if (user.type !== "admin" && visibility) {
+          const visible =
+            visibility === "hidden"
+              ? false
+              : await canSee(user, visibility(req));
+
+          if (!visible) throw hidden();
+        }
+
+        requireAdmin(req, res, next);
+      } catch (error) {
+        next(error);
+      }
     };
   }
 
@@ -39,13 +65,15 @@ export function authorize(rule: AccessRule | undefined): RequestHandler {
     try {
       recordRoute(req, res);
 
-      const allowed = await hasPermission(
+      const decision = await decide(
         getCurrentUser(res),
         rule.permission,
         rule.target?.(req) ?? {},
       );
 
-      if (!allowed) {
+      if (decision === "hidden") throw hidden();
+
+      if (decision === "forbidden") {
         log.info(
           "authorization.denied",
           "Request denied because no assignment grants the permission",

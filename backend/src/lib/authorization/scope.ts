@@ -4,7 +4,7 @@ import {
   type Permission,
 } from "@/lib/permissions";
 
-import type { AccessGrant } from "./types";
+import type { AccessGrant, AccessTarget } from "./types";
 
 export type IdScope = "all" | number[];
 
@@ -83,4 +83,35 @@ export function scopeWhere(
 
 export function toIdFilter(scope: IdScope): number[] | undefined {
   return scope === "all" ? undefined : scope;
+}
+
+export function isVisible(
+  grants: readonly AccessGrant[],
+  target: AccessTarget,
+): boolean {
+  const { projectId, entityId, environmentId } = target;
+
+  if (projectId != null) {
+    const projects = scopeIds(grants, "flag:read", "projectId");
+
+    if (projects !== "all" && !projects.includes(projectId)) return false;
+  }
+
+  if (entityId != null) {
+    if (projectId == null) return false;
+
+    const entities = entityScopeIds(grants, "flag:read", projectId);
+
+    if (entities !== "all" && !entities.includes(entityId)) return false;
+  }
+
+  if (environmentId != null) {
+    const environments = scopeIds(grants, "flag:read", "environmentId");
+
+    if (environments !== "all" && !environments.includes(environmentId)) {
+      return false;
+    }
+  }
+
+  return true;
 }
