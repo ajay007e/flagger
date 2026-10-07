@@ -6,7 +6,14 @@ import {
   type AuditClient,
   type RequestMeta,
 } from "@/lib/audit";
-import { resolveScope, toIdFilter, type AccessUser } from "@/lib/authorization";
+import {
+  resolveScope,
+  toIdFilter,
+  WithCapabilities,
+  withCatalogCapabilities,
+  withCatalogCapability,
+  type AccessUser,
+} from "@/lib/authorization";
 import { AppError, ERROR_CODES } from "@/lib/errors";
 import { getLogger } from "@/lib/logger";
 import { projectRepository, type Project } from "@/repositories/project";
@@ -54,7 +61,7 @@ function audit(
 export async function listProjects(
   query: ListProjectsQuery,
   user: AccessUser,
-): Promise<PaginatedData<Project>> {
+): Promise<PaginatedData<WithCapabilities<Project>>> {
   const scope = await resolveScope(user, "flag:read", "projectId");
 
   const { items, total } = await projectRepository.findPage(prisma, {
@@ -63,7 +70,13 @@ export async function listProjects(
     ...getSkipTake(query),
   });
 
-  return toPaginatedData(items, total, query);
+  return toPaginatedData(
+    await withCatalogCapabilities(user, items, (project) => ({
+      projectId: project.id,
+    })),
+    total,
+    query,
+  );
 }
 
 export function createProject(
@@ -204,7 +217,7 @@ export function restoreProject(
 export async function getProject(
   id: number,
   user: AccessUser,
-): Promise<Project> {
+): Promise<WithCapabilities<Project>> {
   const isAdmin = user.type === "admin";
   const scope = await resolveScope(user, "flag:read", "projectId");
   const visible = scope === "all" || scope.includes(id);
@@ -226,5 +239,5 @@ export async function getProject(
     throw new AppError(ERROR_CODES.NOT_FOUND, "Project not found");
   }
 
-  return project;
+  return withCatalogCapability(user, project, { projectId: project.id });
 }

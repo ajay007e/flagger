@@ -1,14 +1,22 @@
 export {
   canSee,
+  createAccessChecker,
   decide,
+  getOverallCapabilities,
   hasPermission,
   resolveEntityScope,
   resolveScope,
+  type AccessChecker,
   type AccessDecision,
   type AccessUser,
 } from "./access";
+export {
+  NO_CAPABILITIES,
+  withCatalogCapabilities,
+  withCatalogCapability,
+} from "./capabilities";
 export { authorize } from "./middleware";
-export { isAllowed } from "./resolver";
+export { isAllowed, ruleAllows } from "./resolver";
 export {
   adminOnly,
   adminOnlyHidden,
@@ -27,4 +35,11 @@ export {
   type ScopeWhere,
 } from "./scope";
 export { secureRouter } from "./secure-router";
-export type { AccessGrant, AccessRule, AccessTarget } from "./types";
+export type {
+  AccessGrant,
+  AccessRule,
+  AccessTarget,
+  ItemCapabilities,
+  OverallCapabilities,
+  WithCapabilities,
+} from "./types";

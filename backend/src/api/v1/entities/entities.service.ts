@@ -9,6 +9,8 @@ import {
 import {
   resolveEntityScope,
   toIdFilter,
+  WithCapabilities,
+  withCatalogCapabilities,
   type AccessUser,
 } from "@/lib/authorization";
 import { AppError, ERROR_CODES } from "@/lib/errors";
@@ -76,7 +78,7 @@ export async function listEntities(
   projectId: number,
   query: ListEntitiesQuery,
   user: AccessUser,
-): Promise<PaginatedData<Entity>> {
+): Promise<PaginatedData<WithCapabilities<Entity>>> {
   const scope = await resolveEntityScope(user, "flag:read", projectId);
 
   if (scope !== "all" && scope.length === 0) {
@@ -99,8 +101,14 @@ export async function listEntities(
       ...getSkipTake(query),
     },
   );
-
-  return toPaginatedData(items, total, query);
+  return toPaginatedData(
+    await withCatalogCapabilities(user, items, (entity) => ({
+      projectId: entity.projectId,
+      entityId: entity.id,
+    })),
+    total,
+    query,
+  );
 }
 
 export function createEntity(

@@ -8,6 +8,7 @@ import {
   writeAuditLog,
 } from "@/lib/audit";
 import { getCurrentUser } from "@/lib/auth";
+import { getOverallCapabilities, NO_CAPABILITIES } from "@/lib/authorization";
 import {
   destroySession,
   establishSession,
@@ -47,9 +48,6 @@ export async function postLogin(req: Request, res: Response): Promise<void> {
     getRequestMeta(req, res),
   );
 
-  // Regenerates the session id and stores { userId, sessionVersion } before
-  // the response is sent, so the session cookie set on this response is
-  // already valid for the next request.
   await establishSession(req, { id: user.id, sessionVersion });
 
   const response: LoginResponse = user;
@@ -57,23 +55,15 @@ export async function postLogin(req: Request, res: Response): Promise<void> {
   res.json({ success: true, data: response });
 }
 
-/**
- * Requires `requireAuth` earlier in the route's middleware chain — that's
- * what populates the value getCurrentUser reads here. Synchronous (no
- * database call of its own): the user was already loaded by requireAuth.
- */
-export function getMe(_req: Request, res: Response): void {
+export async function getMe(_req: Request, res: Response): Promise<void> {
   const user = getCurrentUser(res);
+  const capabilities = user.mustChangePassword
+    ? NO_CAPABILITIES
+    : await getOverallCapabilities(user);
 
-  res.json({ success: true, data: user });
+  res.json({ success: true, data: { ...user, capabilities } });
 }
 
-/**
- * No requireAuth in this route's chain on purpose: logout must succeed even
- * with no session (an already-expired or nonexistent one), so it can't reject
- * with UNAUTHENTICATED first. The userId is read directly off the session,
- * before it's destroyed, only to decide whether there's anything to audit.
- */
 export async function postLogout(req: Request, res: Response): Promise<void> {
   const session = req.session as SessionWithData;
   const userId = session.userId;
@@ -96,13 +86,6 @@ export async function postLogout(req: Request, res: Response): Promise<void> {
   res.json({ success: true, message: "Logged out" });
 }
 
-/**
- * Requires requireAuth({ allowPasswordChange: true }) — this is one of the
- * two routes reachable while mustChangePassword is still true (the other is
- * /me). Re-establishes *this* device's session with the bumped
- * sessionVersion returned by the service; every other device is logged out
- * on its own next request, once it fails the sessionVersion check.
- */
 export async function postChangePassword(
   req: Request,
   res: Response,

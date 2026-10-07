@@ -51,3 +51,23 @@ Add a throwaway route `requires("flag:update", (req) => ({ projectId: Number(req
 ## Logs
 
 - 404 from a hidden resource logs `authorization.hidden`. 403 logs `auth.denied` (admin-only routes) or `authorization.denied` (permission routes).
+
+## Capabilities (R8)
+
+Setup: admin A, user U with the Viewer role on project 1 limited to `dev`, and a user with no assignment.
+
+| Request                                        | Expected                                                                                              |
+| ---------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| A: `GET /projects`                             | every item has `capabilities` with `canUpdate` and `canDelete` true, `canRestore` false               |
+| A: `GET /projects?includeDeleted=true`         | a deleted item has `canRestore` true, `canUpdate` and `canDelete` false                               |
+| U: `GET /projects`                             | project 1 only, all three capabilities false                                                          |
+| U: `GET /projects/1`                           | `capabilities` all false                                                                              |
+| U: `GET /projects/1/entities`                  | every item has `capabilities`, all false                                                              |
+| U: `GET /environments`                         | `dev` only, all false                                                                                 |
+| A: `GET /auth/me`                              | `capabilities.isAdmin` true, `canManageCatalog` true, every flag and audit capability true            |
+| U: `GET /auth/me`                              | `canReadFlags` true, everything else false                                                            |
+| Editor on project 1: `GET /auth/me`            | `canCreateFlags`, `canUpdateFlags`, `canDeleteFlags` and `canReadFlags` true, `canApproveFlags` false |
+| Auditor: `GET /auth/me`                        | `canReadAudit` true, `canReadFlags` false                                                             |
+| User with `mustChangePassword`: `GET /auth/me` | every capability false                                                                                |
+
+Enforcement: as U, `PATCH /projects/1` still returns 403, whatever the capabilities say.
