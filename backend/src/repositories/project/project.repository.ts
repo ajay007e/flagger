@@ -17,9 +17,17 @@ export function findAll(
 
 export async function findPage(
   client: DbClient,
-  options: { includeDeleted: boolean; skip: number; take: number },
+  options: {
+    includeDeleted: boolean;
+    ids?: number[];
+    skip: number;
+    take: number;
+  },
 ): Promise<{ items: Project[]; total: number }> {
-  const where = options.includeDeleted ? {} : { deletedAt: null };
+  const where = {
+    ...(options.includeDeleted ? {} : { deletedAt: null }),
+    ...(options.ids ? { id: { in: options.ids } } : {}),
+  };
 
   const [items, total] = await Promise.all([
     client.project.findMany({
@@ -103,5 +111,15 @@ export function restore(
   return client.project.update({
     where: { id },
     data: { deletedAt: null, updatedBy },
+  });
+}
+
+export function findVisible(
+  client: DbClient,
+  ids?: number[],
+): Promise<Project[]> {
+  return client.project.findMany({
+    where: { deletedAt: null, ...(ids ? { id: { in: ids } } : {}) },
+    orderBy: [{ name: "asc" }, { id: "asc" }],
   });
 }

@@ -18,8 +18,10 @@ export async function getEnvironments(
   res: Response,
 ): Promise<void> {
   const { includeDeleted } = req.query as unknown as ListEnvironmentsQuery;
-  const data = await environmentsService.listEnvironments(includeDeleted);
-
+  const data = await environmentsService.listEnvironments(
+    includeDeleted,
+    getCurrentUser(res),
+  );
   res.json({ success: true, data });
 }
 

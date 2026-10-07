@@ -14,7 +14,7 @@ const idOf = (req: Request): number => Number(req.params.id);
 
 export async function getProjects(req: Request, res: Response): Promise<void> {
   const query = req.query as unknown as ListProjectsQuery;
-  const data = await projectsService.listProjects(query);
+  const data = await projectsService.listProjects(query, getCurrentUser(res));
 
   res.json({ success: true, data });
 }
@@ -67,7 +67,7 @@ export async function postRestoreProject(
 }
 
 export async function getProject(req: Request, res: Response): Promise<void> {
-  const data = await projectsService.getProject(idOf(req));
+  const data = await projectsService.getProject(idOf(req), getCurrentUser(res));
 
   res.json({ success: true, data });
 }

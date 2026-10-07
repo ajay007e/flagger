@@ -21,6 +21,7 @@ import type {
   ReorderEnvironmentsInput,
   UpdateEnvironmentInput,
 } from "./environments.types";
+import { AccessUser, resolveScope, toIdFilter } from "@/lib";
 
 const log = getLogger("environments");
 
@@ -55,15 +56,16 @@ function audit(
   });
 }
 
-/**
- * Admin-only today. R6 (non-admins see only environments they can access)
- * needs Epic 4 roles/access: when that lands, filter here by the caller's
- * accessible environment ids and relax the router guard on GET only.
- */
-export function listEnvironments(
+export async function listEnvironments(
   includeDeleted: boolean,
+  user: AccessUser,
 ): Promise<Environment[]> {
-  return environmentRepository.findAll(prisma, { includeDeleted });
+  const scope = await resolveScope(user, "flag:read", "environmentId");
+
+  return environmentRepository.findAll(prisma, {
+    includeDeleted: includeDeleted && user.type === "admin",
+    ids: toIdFilter(scope),
+  });
 }
 
 export function createEnvironment(

@@ -28,6 +28,13 @@ export function authorize(rule: AccessRule | undefined): RequestHandler {
     };
   }
 
+  if (rule.kind === "scoped") {
+    return (req, res, next) => {
+      recordRoute(req, res);
+      next();
+    };
+  }
+
   return async (req, res, next) => {
     try {
       recordRoute(req, res);

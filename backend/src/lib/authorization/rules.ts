@@ -12,3 +12,5 @@ export function requires(
 ): AccessRule {
   return { kind: "permission", permission, target };
 }
+
+export const scoped: AccessRule = { kind: "scoped" };

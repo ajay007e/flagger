@@ -6,6 +6,11 @@ import {
   type AuditClient,
   type RequestMeta,
 } from "@/lib/audit";
+import {
+  resolveEntityScope,
+  toIdFilter,
+  type AccessUser,
+} from "@/lib/authorization";
 import { AppError, ERROR_CODES } from "@/lib/errors";
 import { getLogger } from "@/lib/logger";
 import { entityRepository, type Entity } from "@/repositories/entity";
@@ -31,8 +36,6 @@ function auditShape(entity: Entity) {
   };
 }
 
-// Every entity.* row carries projectId and entityId, so a non-admin with
-// audit:read can later be scoped to their projects/entities (Epic 4).
 function audit(
   tx: AuditClient,
   actorId: number,
@@ -55,7 +58,6 @@ function audit(
   });
 }
 
-/** Every entity route needs an active parent project. */
 async function assertProjectActive(
   tx: AuditClient,
   projectId: number,
@@ -73,13 +75,29 @@ async function assertProjectActive(
 export async function listEntities(
   projectId: number,
   query: ListEntitiesQuery,
+  user: AccessUser,
 ): Promise<PaginatedData<Entity>> {
+  const scope = await resolveEntityScope(user, "flag:read", projectId);
+
+  if (scope !== "all" && scope.length === 0) {
+    log.info(
+      "entity.scope.empty",
+      "Entity list refused because no assignment covers the project",
+      { data: { projectId } },
+    );
+    throw new AppError(ERROR_CODES.NOT_FOUND, "Project not found");
+  }
+
   await assertProjectActive(prisma, projectId);
 
   const { items, total } = await entityRepository.findPageByProject(
     prisma,
     projectId,
-    { includeDeleted: query.includeDeleted, ...getSkipTake(query) },
+    {
+      includeDeleted: query.includeDeleted && user.type === "admin",
+      ids: toIdFilter(scope),
+      ...getSkipTake(query),
+    },
   );
 
   return toPaginatedData(items, total, query);
@@ -94,7 +112,6 @@ export function createEntity(
   return prisma.$transaction(async (tx) => {
     await assertProjectActive(tx, projectId);
 
-    // Includes soft-deleted rows: a deleted key stays reserved in the project.
     const reserved = await entityRepository.findByKey(tx, projectId, input.key);
 
     if (reserved) {

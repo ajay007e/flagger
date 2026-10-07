@@ -1,4 +1,4 @@
-import { adminOnly, secureRouter } from "@/lib/authorization";
+import { adminOnly, scoped, secureRouter } from "@/lib/authorization";
 import {
   asyncHandler,
   validateBody,
@@ -29,13 +29,13 @@ export const projectsRouter = secure.router;
 
 secure.get(
   "/",
-  adminOnly,
+  scoped,
   validateQuery(listProjectsQuerySchema),
   asyncHandler(getProjects),
 );
 secure.get(
   "/:id",
-  adminOnly,
+  scoped,
   validateParams(projectParamsSchema),
   asyncHandler(getProject),
 );

@@ -15,7 +15,11 @@ const idOf = (req: Request): number => Number(req.params.id);
 
 export async function getEntities(req: Request, res: Response): Promise<void> {
   const query = req.query as unknown as ListEntitiesQuery;
-  const data = await entitiesService.listEntities(projectIdOf(req), query);
+  const data = await entitiesService.listEntities(
+    projectIdOf(req),
+    query,
+    getCurrentUser(res),
+  );
 
   res.json({ success: true, data });
 }
