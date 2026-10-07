@@ -1,4 +1,9 @@
-import { adminOnly, scoped, secureRouter } from "@/lib/authorization";
+import {
+  adminOnly,
+  adminOnlyOn,
+  scoped,
+  secureRouter,
+} from "@/lib/authorization";
 import {
   asyncHandler,
   validateBody,
@@ -24,6 +29,10 @@ import {
 
 const secure = secureRouter();
 
+const onEnvironment = adminOnlyOn((req) => ({
+  environmentId: Number(req.params.id),
+}));
+
 export const environmentsRouter = secure.router;
 
 secure.get(
@@ -46,20 +55,20 @@ secure.put(
 );
 secure.patch(
   "/:id",
-  adminOnly,
+  onEnvironment,
   validateParams(environmentParamsSchema),
   validateBody(updateEnvironmentSchema),
   asyncHandler(patchEnvironment),
 );
 secure.delete(
   "/:id",
-  adminOnly,
+  onEnvironment,
   validateParams(environmentParamsSchema),
   asyncHandler(deleteEnvironment),
 );
 secure.post(
   "/:id/restore",
-  adminOnly,
+  onEnvironment,
   validateParams(environmentParamsSchema),
   asyncHandler(postRestoreEnvironment),
 );

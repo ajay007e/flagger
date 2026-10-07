@@ -1,4 +1,4 @@
-import { adminOnly, secureRouter } from "@/lib/authorization";
+import { adminOnlyHidden, secureRouter } from "@/lib/authorization";
 import { asyncHandler, validateBody, validateParams } from "@/middleware";
 
 import {
@@ -20,27 +20,27 @@ export const userAccessRouter = secure.router;
 
 secure.get(
   "/",
-  adminOnly,
+  adminOnlyHidden,
   validateParams(userAccessParamsSchema),
   asyncHandler(getUserAccess),
 );
 secure.post(
   "/",
-  adminOnly,
+  adminOnlyHidden,
   validateParams(userAccessParamsSchema),
   validateBody(assignAccessSchema),
   asyncHandler(postUserAccess),
 );
 secure.patch(
   "/:assignmentId",
-  adminOnly,
+  adminOnlyHidden,
   validateParams(assignmentParamsSchema),
   validateBody(updateAccessSchema),
   asyncHandler(patchUserAccess),
 );
 secure.delete(
   "/:assignmentId",
-  adminOnly,
+  adminOnlyHidden,
   validateParams(assignmentParamsSchema),
   asyncHandler(deleteUserAccess),
 );

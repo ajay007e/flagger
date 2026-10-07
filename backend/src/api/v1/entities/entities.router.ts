@@ -1,4 +1,4 @@
-import { adminOnly, scoped, secureRouter } from "@/lib/authorization";
+import { adminOnlyOn, scoped, secureRouter } from "@/lib/authorization";
 import {
   asyncHandler,
   validateBody,
@@ -23,6 +23,15 @@ import {
 
 const secure = secureRouter({ mergeParams: true });
 
+const onProject = adminOnlyOn((req) => ({
+  projectId: Number(req.params.projectId),
+}));
+
+const onEntity = adminOnlyOn((req) => ({
+  projectId: Number(req.params.projectId),
+  entityId: Number(req.params.id),
+}));
+
 export const entitiesRouter = secure.router;
 
 secure.get(
@@ -34,27 +43,27 @@ secure.get(
 );
 secure.post(
   "/",
-  adminOnly,
+  onProject,
   validateParams(projectParamsSchema),
   validateBody(createEntitySchema),
   asyncHandler(postEntity),
 );
 secure.patch(
   "/:id",
-  adminOnly,
+  onEntity,
   validateParams(entityParamsSchema),
   validateBody(updateEntitySchema),
   asyncHandler(patchEntity),
 );
 secure.delete(
   "/:id",
-  adminOnly,
+  onEntity,
   validateParams(entityParamsSchema),
   asyncHandler(deleteEntity),
 );
 secure.post(
   "/:id/restore",
-  adminOnly,
+  onEntity,
   validateParams(entityParamsSchema),
   asyncHandler(postRestoreEntity),
 );
