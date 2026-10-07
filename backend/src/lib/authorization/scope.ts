@@ -1,9 +1,6 @@
-import {
-  isPermission,
-  withImpliedPermissions,
-  type Permission,
-} from "@/lib/permissions";
+import type { Permission } from "@/lib/permissions";
 
+import { grantHas } from "./resolver";
 import type { AccessGrant, AccessTarget } from "./types";
 
 export type IdScope = "all" | number[];
@@ -20,11 +17,7 @@ function grantsWith(
   grants: readonly AccessGrant[],
   permission: Permission,
 ): AccessGrant[] {
-  return grants.filter((grant) =>
-    withImpliedPermissions(grant.permissions.filter(isPermission)).includes(
-      permission,
-    ),
-  );
+  return grants.filter((grant) => grantHas(grant, permission));
 }
 
 function collect(

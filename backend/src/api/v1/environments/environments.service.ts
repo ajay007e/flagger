@@ -21,7 +21,13 @@ import type {
   ReorderEnvironmentsInput,
   UpdateEnvironmentInput,
 } from "./environments.types";
-import { AccessUser, resolveScope, toIdFilter } from "@/lib";
+import {
+  AccessUser,
+  resolveScope,
+  toIdFilter,
+  WithCapabilities,
+  withCatalogCapabilities,
+} from "@/lib";
 
 const log = getLogger("environments");
 
@@ -59,13 +65,17 @@ function audit(
 export async function listEnvironments(
   includeDeleted: boolean,
   user: AccessUser,
-): Promise<Environment[]> {
+): Promise<WithCapabilities<Environment>[]> {
   const scope = await resolveScope(user, "flag:read", "environmentId");
 
-  return environmentRepository.findAll(prisma, {
+  const items = await environmentRepository.findAll(prisma, {
     includeDeleted: includeDeleted && user.type === "admin",
     ids: toIdFilter(scope),
   });
+
+  return withCatalogCapabilities(user, items, (environment) => ({
+    environmentId: environment.id,
+  }));
 }
 
 export function createEnvironment(

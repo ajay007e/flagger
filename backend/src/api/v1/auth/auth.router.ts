@@ -28,9 +28,11 @@ authRouter.post(
 
 authRouter.post("/login", validateBody(loginSchema), asyncHandler(postLogin));
 
-// Both reachable while mustChangePassword is true — everything else blocks
-// until the password is changed (see requireAuth's default).
-authRouter.get("/me", requireAuth({ allowPasswordChange: true }), getMe);
+authRouter.get(
+  "/me",
+  requireAuth({ allowPasswordChange: true }),
+  asyncHandler(getMe),
+);
 
 authRouter.post(
   "/change-password",

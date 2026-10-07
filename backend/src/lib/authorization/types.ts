@@ -23,3 +23,23 @@ export type AccessRule =
       permission: Permission;
       target?: (req: Request) => AccessTarget;
     };
+
+export interface ItemCapabilities {
+  canUpdate: boolean;
+  canDelete: boolean;
+  canRestore: boolean;
+}
+
+export type WithCapabilities<T> = T & { capabilities: ItemCapabilities };
+
+export interface OverallCapabilities {
+  isAdmin: boolean;
+  canManageUsers: boolean;
+  canManageCatalog: boolean;
+  canReadFlags: boolean;
+  canCreateFlags: boolean;
+  canUpdateFlags: boolean;
+  canDeleteFlags: boolean;
+  canApproveFlags: boolean;
+  canReadAudit: boolean;
+}
