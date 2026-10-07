@@ -6,6 +6,7 @@ import {
   type AuditClient,
   type RequestMeta,
 } from "@/lib/audit";
+import { resolveScope, toIdFilter, type AccessUser } from "@/lib/authorization";
 import { AppError, ERROR_CODES } from "@/lib/errors";
 import { getLogger } from "@/lib/logger";
 import { projectRepository, type Project } from "@/repositories/project";
@@ -29,8 +30,6 @@ function auditShape(project: Project) {
   };
 }
 
-// Every project.* row carries projectId, so a non-admin with audit:read can
-// later be scoped to their projects (Epic 4).
 function audit(
   tx: AuditClient,
   actorId: number,
@@ -54,9 +53,13 @@ function audit(
 
 export async function listProjects(
   query: ListProjectsQuery,
+  user: AccessUser,
 ): Promise<PaginatedData<Project>> {
+  const scope = await resolveScope(user, "flag:read", "projectId");
+
   const { items, total } = await projectRepository.findPage(prisma, {
-    includeDeleted: query.includeDeleted,
+    includeDeleted: query.includeDeleted && user.type === "admin",
+    ids: toIdFilter(scope),
     ...getSkipTake(query),
   });
 
@@ -69,7 +72,6 @@ export function createProject(
   request: RequestMeta,
 ): Promise<Project> {
   return prisma.$transaction(async (tx) => {
-    // Includes soft-deleted rows: a deleted key stays reserved.
     const reserved = await projectRepository.findByKey(tx, input.key);
 
     if (reserved) {
@@ -199,14 +201,27 @@ export function restoreProject(
   });
 }
 
-export async function getProject(id: number): Promise<Project> {
-  const project = await projectRepository.findAnyById(prisma, id);
+export async function getProject(
+  id: number,
+  user: AccessUser,
+): Promise<Project> {
+  const isAdmin = user.type === "admin";
+  const scope = await resolveScope(user, "flag:read", "projectId");
+  const visible = scope === "all" || scope.includes(id);
+
+  let project: Project | null = null;
+
+  if (visible) {
+    project = isAdmin
+      ? await projectRepository.findAnyById(prisma, id)
+      : await projectRepository.findActiveById(prisma, id);
+  }
 
   if (!project) {
     log.info(
       "project.lookup.missing",
-      "Project lookup refused because no project matches",
-      { data: { projectId: id } },
+      "Project lookup refused because no visible project matches",
+      { data: { projectId: id, inScope: visible } },
     );
     throw new AppError(ERROR_CODES.NOT_FOUND, "Project not found");
   }

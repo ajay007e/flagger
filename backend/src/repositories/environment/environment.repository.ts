@@ -9,10 +9,13 @@ const ORDER = [{ sortOrder: "asc" }, { id: "asc" }] as const;
 
 export function findAll(
   client: DbClient,
-  options: { includeDeleted: boolean },
+  options: { includeDeleted: boolean; ids?: number[] },
 ): Promise<Environment[]> {
   return client.environment.findMany({
-    where: options.includeDeleted ? {} : { deletedAt: null },
+    where: {
+      ...(options.includeDeleted ? {} : { deletedAt: null }),
+      ...(options.ids ? { id: { in: options.ids } } : {}),
+    },
     orderBy: [...ORDER],
   });
 }

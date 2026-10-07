@@ -8,11 +8,18 @@ import type {
 export async function findPageByProject(
   client: DbClient,
   projectId: number,
-  options: { includeDeleted: boolean; skip: number; take: number },
+  options: {
+    includeDeleted: boolean;
+    ids?: number[];
+    skip: number;
+    take: number;
+  },
 ): Promise<{ items: Entity[]; total: number }> {
-  const where = options.includeDeleted
-    ? { projectId }
-    : { projectId, deletedAt: null };
+  const where = {
+    projectId,
+    ...(options.includeDeleted ? {} : { deletedAt: null }),
+    ...(options.ids ? { id: { in: options.ids } } : {}),
+  };
 
   const [items, total] = await Promise.all([
     client.entity.findMany({

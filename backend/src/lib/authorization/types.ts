@@ -17,6 +17,7 @@ export interface AccessGrant {
 
 export type AccessRule =
   | { kind: "admin" }
+  | { kind: "scoped" }
   | {
       kind: "permission";
       permission: Permission;

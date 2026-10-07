@@ -6,6 +6,7 @@ import { environmentsRouter } from "./environments";
 import { projectsRouter } from "./projects";
 import { diagnosisRouter } from "./diagnosis";
 import { usersRouter } from "./users";
+import { accessRouter } from "./access";
 
 export const v1Router = Router();
 
@@ -15,3 +16,4 @@ v1Router.use("/environments", environmentsRouter);
 v1Router.use("/projects", projectsRouter);
 v1Router.use("/diagnosis", diagnosisRouter);
 v1Router.use("/users", usersRouter);
+v1Router.use("/access", accessRouter);

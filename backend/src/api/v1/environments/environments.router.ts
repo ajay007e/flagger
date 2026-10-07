@@ -1,4 +1,4 @@
-import { adminOnly, secureRouter } from "@/lib/authorization";
+import { adminOnly, scoped, secureRouter } from "@/lib/authorization";
 import {
   asyncHandler,
   validateBody,
@@ -28,7 +28,7 @@ export const environmentsRouter = secure.router;
 
 secure.get(
   "/",
-  adminOnly,
+  scoped,
   validateQuery(listEnvironmentsQuerySchema),
   asyncHandler(getEnvironments),
 );
