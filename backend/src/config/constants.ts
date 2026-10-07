@@ -53,6 +53,7 @@ export const LOG_LEVELS = [
 export const LOG_SCOPES = [
   "http",
   "auth",
+  "authorization",
   "session",
   "db",
   "redis",

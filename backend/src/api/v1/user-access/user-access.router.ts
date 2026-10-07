@@ -1,6 +1,4 @@
-import { Router } from "express";
-
-import { requireAdmin, requireAuth } from "@/lib/auth";
+import { adminOnly, secureRouter } from "@/lib/authorization";
 import { asyncHandler, validateBody, validateParams } from "@/middleware";
 
 import {
@@ -9,7 +7,6 @@ import {
   patchUserAccess,
   postUserAccess,
 } from "./user-access.controller";
-
 import {
   assignmentParamsSchema,
   assignAccessSchema,
@@ -17,30 +14,33 @@ import {
   userAccessParamsSchema,
 } from "./user-access.validator";
 
-export const userAccessRouter = Router({ mergeParams: true });
+const secure = secureRouter({ mergeParams: true });
 
-userAccessRouter.use(requireAuth(), requireAdmin);
+export const userAccessRouter = secure.router;
 
-userAccessRouter.get(
+secure.get(
   "/",
+  adminOnly,
   validateParams(userAccessParamsSchema),
   asyncHandler(getUserAccess),
 );
-userAccessRouter.post(
+secure.post(
   "/",
+  adminOnly,
   validateParams(userAccessParamsSchema),
   validateBody(assignAccessSchema),
   asyncHandler(postUserAccess),
 );
-
-userAccessRouter.patch(
+secure.patch(
   "/:assignmentId",
+  adminOnly,
   validateParams(assignmentParamsSchema),
   validateBody(updateAccessSchema),
   asyncHandler(patchUserAccess),
 );
-userAccessRouter.delete(
+secure.delete(
   "/:assignmentId",
+  adminOnly,
   validateParams(assignmentParamsSchema),
   asyncHandler(deleteUserAccess),
 );

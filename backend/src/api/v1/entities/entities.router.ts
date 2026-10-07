@@ -1,6 +1,4 @@
-import { Router } from "express";
-
-import { requireAdmin, requireAuth } from "@/lib/auth";
+import { adminOnly, secureRouter } from "@/lib/authorization";
 import {
   asyncHandler,
   validateBody,
@@ -23,36 +21,40 @@ import {
   updateEntitySchema,
 } from "./entities.validator";
 
-export const entitiesRouter = Router({ mergeParams: true });
+const secure = secureRouter({ mergeParams: true });
 
-// Admin-only for every route. R6 will relax GET only, once Epic 4 lands.
-entitiesRouter.use(requireAuth(), requireAdmin);
+export const entitiesRouter = secure.router;
 
-entitiesRouter.get(
+secure.get(
   "/",
+  adminOnly,
   validateParams(projectParamsSchema),
   validateQuery(listEntitiesQuerySchema),
   asyncHandler(getEntities),
 );
-entitiesRouter.post(
+secure.post(
   "/",
+  adminOnly,
   validateParams(projectParamsSchema),
   validateBody(createEntitySchema),
   asyncHandler(postEntity),
 );
-entitiesRouter.patch(
+secure.patch(
   "/:id",
+  adminOnly,
   validateParams(entityParamsSchema),
   validateBody(updateEntitySchema),
   asyncHandler(patchEntity),
 );
-entitiesRouter.delete(
+secure.delete(
   "/:id",
+  adminOnly,
   validateParams(entityParamsSchema),
   asyncHandler(deleteEntity),
 );
-entitiesRouter.post(
+secure.post(
   "/:id/restore",
+  adminOnly,
   validateParams(entityParamsSchema),
   asyncHandler(postRestoreEntity),
 );
