@@ -1,11 +1,12 @@
 "use client";
 
 import { Pencil, RotateCcw, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import {
   Button,
   ConfirmDialog,
+  Pager,
   ResourceList,
   ResourceRow,
 } from "@/shared/components";
@@ -16,15 +17,30 @@ import { entitiesService } from "../entities.service";
 import type { Entity } from "../entities.types";
 import { EntityFormModal } from "./entity-form-modal";
 
+import { ENTITIES_PAGE_SIZE } from "../entities.constants";
+
 export function EntitiesScreen({ projectId }: { projectId: number }) {
   const [showDeleted, setShowDeleted] = useState(false);
-  const { data, loading, error, refetch } = useEntities(projectId, showDeleted);
+  const [page, setPage] = useState(1);
+  const { data, loading, error, refetch } = useEntities(
+    projectId,
+    page,
+    ENTITIES_PAGE_SIZE,
+    showDeleted,
+  );
   const { busy, run } = useAction(refetch);
 
   const [form, setForm] = useState<{ entity: Entity | null } | null>(null);
   const [toDelete, setToDelete] = useState<Entity | null>(null);
 
-  const entities = data ?? [];
+  const entities = data?.items ?? [];
+  const meta = data?.meta;
+
+  useEffect(() => {
+    if (data && data.items.length === 0 && page > 1) {
+      setPage(Math.max(1, data.meta.totalPages));
+    }
+  }, [data, page]);
 
   async function confirmDelete(): Promise<void> {
     if (!toDelete) return;
@@ -44,7 +60,10 @@ export function EntitiesScreen({ projectId }: { projectId: number }) {
         createLabel="New entity"
         onCreate={() => setForm({ entity: null })}
         showDeleted={showDeleted}
-        onShowDeletedChange={setShowDeleted}
+        onShowDeletedChange={(value) => {
+          setShowDeleted(value);
+          setPage(1);
+        }}
         loading={loading && !data}
         error={error}
         onRetry={refetch}
@@ -102,6 +121,17 @@ export function EntitiesScreen({ projectId }: { projectId: number }) {
           );
         })}
       </ResourceList>
+
+      {meta ? (
+        <Pager
+          className="mt-6"
+          page={meta.page}
+          totalPages={meta.totalPages}
+          total={meta.total}
+          disabled={loading}
+          onPageChange={setPage}
+        />
+      ) : null}
 
       <EntityFormModal
         open={form !== null}

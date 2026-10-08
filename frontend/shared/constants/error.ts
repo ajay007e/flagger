@@ -1,7 +1,3 @@
-/**
- * Error codes returned by the API in `ErrorResponse.code`.
- * Keep in sync with backend/src/lib/errors/constants.ts.
- */
 export const ERROR_CODES = {
   UNAUTHENTICATED: "UNAUTHENTICATED",
   SESSION_EXPIRED: "SESSION_EXPIRED",
@@ -9,6 +5,8 @@ export const ERROR_CODES = {
   NOT_FOUND: "NOT_FOUND",
   VALIDATION_ERROR: "VALIDATION_ERROR",
   CONFLICT: "CONFLICT",
+  FORBIDDEN: "FORBIDDEN",
   SERVICE_UNAVAILABLE: "SERVICE_UNAVAILABLE",
   INTERNAL_ERROR: "INTERNAL_ERROR",
+  LAST_ADMIN: "LAST_ADMIN",
 } as const;

@@ -1,4 +1,5 @@
 import type {
+  ButtonHTMLAttributes,
   FC,
   InputHTMLAttributes,
   ReactNode,
@@ -6,15 +7,14 @@ import type {
 } from "react";
 
 import type FieldInput from "./input/input";
+import type FieldSelect from "./input/select";
 import type FieldTextarea from "./input/textarea";
+import type FieldToggle from "./input/toggle";
 
 export type FieldSize = "sm" | "md" | "lg";
 export type FieldVariant = "outline" | "filled" | "ghost";
-/** Visual/a11y state, derived from whether Field has an error or a success message. */
 export type FieldState = "default" | "invalid" | "success";
 
-/** What Field passes down to Field.Input / Field.Textarea, so they never need
- * their own id, disabled, or aria-* props set by hand. */
 export interface FieldContextValue {
   id: string;
   required?: boolean;
@@ -30,12 +30,9 @@ export interface FieldProps {
   label?: ReactNode;
   children: ReactNode;
   helperText?: ReactNode;
-  /** Presence of `error` sets state to "invalid" and takes priority over `success`/`helperText`. */
   error?: ReactNode;
-  /** Presence of `success` (with no `error`) sets state to "success". */
   success?: ReactNode;
   required?: boolean;
-  /** Shows an "Optional" hint next to the label. Ignored when `required` is true. */
   optional?: boolean;
   disabled?: boolean;
   size?: FieldSize;
@@ -52,10 +49,8 @@ export interface FieldInputProps extends InputHTMLAttributes<HTMLInputElement> {
   leftIcon?: ReactNode;
   rightIcon?: ReactNode;
   loading?: boolean;
-  /** Shows a clear (x) button once the field has content. */
   clearable?: boolean;
   onClear?: () => void;
-  /** Only takes effect when type="password". */
   showPasswordToggle?: boolean;
   fullWidth?: boolean;
 }
@@ -64,7 +59,40 @@ export interface FieldTextareaProps extends TextareaHTMLAttributes<HTMLTextAreaE
   fullWidth?: boolean;
 }
 
+export type FieldSelectWidth = "sm" | "md" | "lg" | "full";
+
+export interface FieldSelectOption {
+  value: string;
+  label: ReactNode;
+  disabled?: boolean;
+}
+
+export interface FieldSelectProps {
+  options: readonly FieldSelectOption[];
+  value: string;
+  onValueChange: (value: string) => void;
+  placeholder?: ReactNode;
+  leftIcon?: ReactNode;
+  width?: FieldSelectWidth;
+  disabled?: boolean;
+  id?: string;
+  className?: string;
+  onBlur?: () => void;
+  "aria-label"?: string;
+}
+
+export interface FieldToggleProps extends Omit<
+  ButtonHTMLAttributes<HTMLButtonElement>,
+  "onChange" | "children" | "type" | "role"
+> {
+  checked: boolean;
+  onCheckedChange: (checked: boolean) => void;
+  label?: ReactNode;
+}
+
 export interface FieldComponent extends FC<FieldProps> {
   Input: typeof FieldInput;
   Textarea: typeof FieldTextarea;
+  Select: typeof FieldSelect;
+  Toggle: typeof FieldToggle;
 }

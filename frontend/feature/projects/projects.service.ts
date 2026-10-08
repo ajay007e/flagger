@@ -1,4 +1,4 @@
-import type { ApiResponse } from "@/shared";
+import type { ApiResponse, PaginatedData } from "@/shared";
 import { api } from "@/shared/lib";
 
 import type {
@@ -10,10 +10,14 @@ import type {
 const BASE = "/api/v1/projects";
 
 export const projectsService = {
-  list(includeDeleted: boolean) {
-    return api.get<ApiResponse<Project[]>>(BASE, {
-      params: { includeDeleted },
+  list(page: number, limit: number, includeDeleted: boolean) {
+    return api.get<ApiResponse<PaginatedData<Project>>>(BASE, {
+      params: { page, limit, includeDeleted },
     });
+  },
+
+  get(id: number) {
+    return api.get<ApiResponse<Project>>(`${BASE}/${id}`);
   },
 
   create(input: CreateProjectInput) {
