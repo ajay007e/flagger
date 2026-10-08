@@ -37,11 +37,12 @@ Built: admin and normal user areas, diagnosis service (`docs/diagnosis.md`), str
 
 - `app/`: routes and layouts only (`/admin/*` is guarded; the admin layout also sets page padding and max width). The app shell (sidebar + scrollable main, no navbar or footer) lives here because it composes several features.
 - `feature/<name>/`: domain logic + components (`.service`, `.hook`, `.validator`, `.types`, `.constants`, `components/`, exported via `index.ts`). List features keep their page size in their constants (`USERS_PAGE_SIZE`, `PROJECTS_PAGE_SIZE`, `ENTITIES_PAGE_SIZE`).
+- `feature/users/` also holds the access assignment form (`user-access.*` files and the `access-card` and `user-access-section` components), because features don't import each other.
 - `feature/diagnosis/` + `shared/lib/diagnosis/`: `DiagnosisGate` wraps the app shell. The store is in `shared/lib` because `api.ts` flips it.
 - `shared/components/{ui,layout,form,feedback}/`: reusable primitives
-  - `ui`: Button, Badge, Avatar, Modal, ConfirmDialog, Popover
-  - `form`: `Field` (with `Field.Input`, `Field.Textarea`, `Field.Select`, `Field.Toggle`), `FormError`
-  - `feedback`: Toast, Loader
+  - `ui`: Button, Badge, Avatar, Modal (sizes `sm` to `xl`), ConfirmDialog, Popover
+  - `form`: `Field` (with `Field.Input`, `Field.Textarea`, `Field.Select`, `Field.MultiSelect`, `Field.Toggle`), `FormError`
+  - `feedback`: Toast, Loader, `Notice` (themed inline warning or info)
   - `layout`: Sidebar, `Pager`, and the `resource-list` kit
 - `shared/components/layout/resource-list/`: the admin list kit. `ResourceList` (header, loading/error/empty states), `ResourceToolbar` (optional show-deleted toggle, plus `search` and `filters` slots) and `ResourceRow` (card row, stacks on mobile).
 - `shared/components/layout/pager/`: `Pager` (previous/next, page and total text). It renders nothing when there is only one page and sits after `ResourceList`, not inside it.
@@ -53,7 +54,7 @@ Built: admin and normal user areas, diagnosis service (`docs/diagnosis.md`), str
 
 ### Admin routes
 
-- `/admin/users`: list (search, type and status filters, pager), create, edit, disable, enable, reset password, delete, restore
+- `/admin/users`: list (search, type and status filters, pager), create (two steps: details, then access), edit (including access), disable, enable, reset password, delete, restore
 - `/admin/environments`: list, create, edit, delete, restore, reorder
 - `/admin/projects`: list (pager), create, edit, delete, restore
 - `/admin/projects/[id]`: the project's entities (list with pager, create, edit, delete, restore)
@@ -80,7 +81,7 @@ Built: admin and normal user areas, diagnosis service (`docs/diagnosis.md`), str
   - `requires(permission, target)` decides this through `decide`.
   - `adminOnlyOn(target)` does it for admin-only routes on one catalog row (`PATCH`, `DELETE` and restore of a project, entity or environment, and entity create).
   - `adminOnlyHidden` answers 404 to every non-admin on routes addressed by a user id (`/users/:id...`, `/users/:userId/access...`), because users are never visible to non-admins.
-  - `adminOnly` stays 403 for collection routes with no target (create, reorder, list users), since there is nothing to hide.
+  - `adminOnly` stays 403 for collection routes with no target (create, reorder, list users, list roles), since there is nothing to hide.
   - Visibility is decided from the grants alone, with no row lookup. Nonexistent, deleted and out-of-scope ids give a non-admin the same 404 code and message, and a non-admin never reaches the service on an admin-only route. The manual check is `docs/authorization.md`.
 - **Capabilities use the same decision code as routes.** `ruleAllows(rule, user, grants, target)` is the one function that answers "does this rule allow this user on this target". `authorize` and the capability helpers both use it, so a rule change can't make the UI and the API disagree. `createAccessChecker(user)` loads the grants at most once per call, and not at all for admins.
 - **Read responses carry item capabilities.** The environments list, projects list, `GET /projects/:id` and entities list return each item with `capabilities: { canUpdate, canDelete, canRestore }` (`withCatalogCapabilities`). A deleted item can only be restored, and a live one can only be updated or deleted. Write responses (create, update, restore) do not carry them, so the UI refetches after a write. Hiding a button is convenience only: the route rules still enforce everything.
@@ -107,6 +108,12 @@ Built: admin and normal user areas, diagnosis service (`docs/diagnosis.md`), str
 - **Duplicate access is refused in the service, not by an index.** A duplicate is an active row with the same user, role, project, entity and environment, where null matches only null. MySQL unique indexes treat nulls as distinct, so an index can't enforce it. Assign and update take a row lock on the target user first (`userRepository.lockById`, `SELECT ... FOR UPDATE`), then run `assertNotDuplicate` before every create and role change, so concurrent requests for the same user run one after the other. A duplicate returns 409 `Access already assigned`. Edits exclude their own assignment from the check, revoked rows never count, and the same scope with a different role is allowed.
 - **Editing an assignment diffs combinations, it does not rewrite rows.** `PATCH /users/:userId/access/:assignmentId` takes optional `roleId`, `entityIds` and `environmentIds`. Each list is the full new set, an empty list means "all", and an omitted field keeps its value. Rows whose combination dropped out are soft-deleted, new combinations are created with the same `assignment_id`, and kept rows get the new role. The project of an assignment is immutable.
 - **Revoking soft-deletes every row of the assignment.** `DELETE /users/:userId/access/:assignmentId` returns 404 for an unknown or already revoked assignment, like `PATCH`. Access is read from `user_access` on every request, so an edit or revoke applies on the user's next request.
+- **`GET /access/roles` is admin-only and unpaginated** (`id`, `key`, `name`, `description`). It feeds the role picker in the assignment form, since Role CRUD does not exist yet.
+- **The user form edits access as cards.** Each card is one `assignmentId`: project (or all, with a warning), role, entities and environments (empty means all), and a plain-language summary. Entities load per project through `GET /projects/:projectId/entities?limit=100`, are disabled until a project is chosen, and are cleared when the project changes.
+  - Create is a two-step form (details, then access): `POST /users`, then one `POST /users/:userId/access` per card. Admin-type users skip the access step.
+  - Edit is a single form. It loads the user's assignments first and diffs the cards against them, sending only revoke, `PATCH` or `POST` calls. A project change is revoke plus assign, because the project is immutable, and revokes run first so a removed card can be re-added without a 409.
+  - If an access call fails, the user is still saved and a persistent error toast shows the count and the first message. A duplicate surfaces from the backend 409, with no client-side duplicate check.
+  - Switching a user to type `admin` leaves their existing access rows untouched, as the backend does.
 
 ### Users
 
@@ -144,12 +151,14 @@ Built: admin and normal user areas, diagnosis service (`docs/diagnosis.md`), str
 
 - **Modals over pages** for login, forced password change, profile, settings, the temporary password, and the create/edit forms of the admin screens. Keeps one persistent shell and avoids route-guard sprawl.
 - **Features don't import each other.** Duplicate tiny constants instead (documented inline where done). The frontend validators duplicate the backend limits, key pattern and user types for the same reason.
-- **Form errors:** invalid input shows inline per field (client zod schema mirrors the server). A `CONFLICT` response is shown on the key field (the email field for users). `LAST_ADMIN` on the user edit form is shown on the type field. Any other failure is a form-level `FormError` banner. Delete, restore, disable, enable, reset and reorder failures are toasts via `useAction`.
+- **Form errors:** invalid input shows inline per field (client zod schema mirrors the server). A `CONFLICT` response is shown on the key field (the email field for users, and a duplicate email returns the create form to its details step). `LAST_ADMIN` on the user edit form is shown on the type field. Access card errors show on their card. Any other failure is a form-level `FormError` banner. Delete, restore, disable, enable, reset and reorder failures are toasts via `useAction`.
+- **Multi-step forms keep one form instance.** The create-user form keeps its state in the parent form, so going back keeps typed values and access cards. The first step validates through the same zod schema as the final submit, and the access cards are validated on the final step.
 - **Confirmations:** destructive and session-ending actions (delete, disable, reset password) and restore and enable go through `ConfirmDialog`, which stays open and shows a loading state while the call runs.
 - **Temporary passwords are shown once.** Create user and reset password open a non-dismissible modal with a warning and a copy button. The password lives only in component state and is dropped when the modal closes. It is never persisted or logged.
 - **Theme tokens only.** Shared controls use the semantic tokens (`bg-surface`, `border-border`, `bg-primary`, `text-muted`, ...), never hard-coded colors, so they follow light and dark mode.
-- **`Field.Select` is a custom listbox, not a native `<select>`.** Its panel renders in a portal with fixed positioning, so modals and scroll containers can't clip it, and it flips upward when there is no room below. The API is `options`, `value`, `onValueChange` and a `width` prop (`sm`, `md`, `lg`, `full`) for a fixed trigger width. It closes on outside click, outside scroll and resize, and Escape closes only the dropdown, not the parent modal.
+- **`Field.Select` and `Field.MultiSelect` are custom listboxes, not native `<select>`.** Their panels render in a portal with fixed positioning, so modals and scroll containers can't clip them, and they flip upward when there is no room below. `Field.Select` takes `options`, `value`, `onValueChange` and a `width` prop (`sm`, `md`, `lg`, `full`) for a fixed trigger width. `Field.MultiSelect` takes a `string[]` value and an optional `allLabel`: choosing it clears the selection, and an empty selection means "all". Both close on outside click, outside scroll and resize, and Escape closes only the dropdown, not the parent modal.
 - **`Field.Toggle` is a controlled switch** (`checked`, `onCheckedChange`, optional `label`). It is used for "Show deleted".
+- **`Notice` is the inline banner for warnings and info** (`variant="warning" | "info"`). `FormError` stays for form-level errors, and toasts are for transient results.
 
 ## Gotchas
 
@@ -201,19 +210,22 @@ Built: admin and normal user areas, diagnosis service (`docs/diagnosis.md`), str
 - Use `findByEmailIncludingDeleted` for any uniqueness check on user emails. `findByEmail` hides deleted rows and would let a reserved email through.
 - `userRepository.findPage` is the only user read that uses `select`. Its result type is `UserListItem`, not `User`. Add new list fields to `LIST_SELECT` on purpose.
 - `/users/:userId/access` is mounted inside `usersRouter` (`api/v1/users`), behind its `adminOnlyHidden` rules. Add new user routes there. `api/v1/index.ts` must not also mount the access router on its own.
+- `GET /access/roles` is declared `adminOnly` and returns every active role. If roles ever need to be readable by non-admins, move it to a rule that scopes the result.
 
 ### Frontend
 
 - Tailwind classes must be written literally. Dynamic class-string construction is silently dropped by the static scanner.
 - Flex children that truncate need `min-w-0` (this caused the Sidebar and Button overflow bugs).
 - Tailwind v4 resets buttons to the default cursor. Interactive custom controls need an explicit `cursor-pointer`.
-- `useApiQuery` needs a stable `request` reference, so wrap parameterized service calls in `useCallback` (see `useEnvironments`, `useUsers`).
-- `GET /projects`, `GET /projects/:projectId/entities` and `GET /users` return `{ items, meta }`, not an array. Screens must read `data.items`. Anything that needs every project or environment (such as the Epic 4 assignment dropdown) must use `GET /access/available`, not the list: the page size is capped at 100.
+- `react/no-unescaped-entities` flags apostrophes in JSX text, not in string props. Reword JSX text ("cannot" instead of "can't") instead of escaping.
+- `useApiQuery` needs a stable `request` reference, so wrap parameterized service calls in `useCallback` (see `useEnvironments`, `useUsers`, `EditUserForm`).
+- `GET /projects`, `GET /projects/:projectId/entities` and `GET /users` return `{ items, meta }`, not an array. Screens must read `data.items`. Anything that needs every project or environment (such as the assignment form) must use `GET /access/available`, not the list: the page size is capped at 100. The entity picker in the assignment form is the exception: it reads one page of up to 100 entities for the chosen project, so a project with more entities is truncated there.
 - `GET /projects/:id` returns the project even when it is deleted, for admins only. Non-admins get 404 for a deleted or out-of-scope project. The project page reads it through `useProject`, which calls this endpoint.
 - The frontend `ERROR_CODES` (`shared/constants/error.ts`) must stay in sync with `backend/src/lib/errors/constants.ts`. A code missing on the frontend is not an error at runtime, but `getErrorCode` comparisons against it won't type-check.
-- `Field.Select` is not an input element, so `register()` can't drive it. Inside react-hook-form, wrap it in `Controller` and pass `field.ref`, `field.value`, `field.onChange` and `field.onBlur`. `Field.Toggle` is controlled and needs `Controller` too.
-- Escape inside an open `Field.Select` must not reach the parent `Modal`. The select stops propagation while its panel is open.
+- `Field.Select` and `Field.MultiSelect` are not input elements, so `register()` can't drive them. Inside react-hook-form, wrap them in `Controller` and pass `field.ref`, `field.value`, `field.onChange` and `field.onBlur`. `Field.Toggle` is controlled and needs `Controller` too. Access cards are plain state, not part of the react-hook-form values.
+- Escape inside an open `Field.Select` or `Field.MultiSelect` must not reach the parent `Modal`. They stop propagation while their panel is open.
 - `ResourceList` and `ResourceToolbar` show the "Show deleted" toggle only when `onShowDeletedChange` is passed. Users omit it and reach deleted rows through the status filter.
+- Card keys in the access form (`AccessDraft.key`) are the `assignmentId` for loaded cards and a counter value for new ones. Keep them stable, because each card owns its entity query.
 
 ## Current state
 
@@ -221,20 +233,20 @@ Built: admin and normal user areas, diagnosis service (`docs/diagnosis.md`), str
 - Logging: logger core, request context, controller and service path logging, DB and Redis logging, boundary logging for errors, validation and auth, diagnosis, audit fallback and process logging, and the `no-console` lint rule. Error responses carry `requestId`, but the frontend does not show it yet, and there is no frontend error reporting.
 - Catalog (backend): environments, projects and entities have admin CRUD with soft delete, restore and audit logging. Environments also support reorder. Projects have `GET /projects/:id`. The project and entity lists are paginated (`page`, `limit`, `includeDeleted`). The seed creates `dev`, `staging` and `production`. Reads are filtered by the user's scope (R6), and writes are admin-only.
 - Catalog (frontend): admin screens for environments, projects and entities (see Admin routes), built on the shared `resource-list` kit. The project and entity screens read the paginated responses and show a `Pager`, and the project page uses `GET /projects/:id`. The toolbar only has "Show deleted" so far; search and filters are not built for these screens.
-- Roles (backend): permission list, `roles` and `role_permissions` tables, and the seeded Viewer, Editor, Approver and Auditor roles (R1). Role CRUD is not built yet.
+- Roles (backend): permission list, `roles` and `role_permissions` tables, the seeded Viewer, Editor, Approver and Auditor roles (R1), and the admin-only `GET /access/roles` list. Role CRUD is not built yet.
 - Access (backend): `user_access` table and admin endpoints to assign (R2), edit and revoke (R3) a user's access, and to list a user's assignments grouped by `assignmentId`. Assign and edit validate scope and reject duplicates under a user row lock (R4). The central check (R5) is built: routes declare `adminOnly`, `adminOnlyOn`, `adminOnlyHidden`, `scoped` or `requires(...)` through `secureRouter`, and undeclared routes are denied. The scope filter (R6) is built, and `GET /access/available` returns the user's projects and environments. Hidden resources answer 404 and forbidden actions 403 (R7), checked by hand with `docs/authorization.md`. Item capabilities on catalog reads and the overall capabilities on `GET /auth/me` are built (R8, backend part). No route uses `requires(...)` yet.
-- Access (frontend): not built. The admin UI warning when "all projects" is chosen (R4) goes with the assignment screen.
+- Access (frontend, W7): the assignment cards are built into the create and edit user form (project or all with a warning, role, entities, environments, summary, add and remove). Create is a two-step form and edit is a single form. Not built: a standalone access screen.
 - Users (backend): admin-only user management is complete: create with a temporary password (U1), list with pagination, search and filters (U2), edit name and type (U3), disable and enable (U4), reset password (U5), delete and restore (U6). The last-admin guard (U7) is called by U3, U4 and U6. Not built: last login in the list.
-- Users (frontend, W6): the admin users screen is built, with search, type and status filters, a pager, create and reset with a one-time temporary password, edit, disable, enable, delete and restore behind confirmations, and API error states. Not built: last login in the list, and an entry point to a user's access.
-- Shared frontend: `Pager`, `useDebouncedValue`, `Field.Select`, `Field.Toggle` and the pagination types are built.
+- Users (frontend, W6): the admin users screen is built, with search, type and status filters, a pager, create and reset with a one-time temporary password, edit, disable, enable, delete and restore behind confirmations, and API error states. Not built: last login in the list.
+- Shared frontend: `Pager`, `useDebouncedValue`, `Field.Select`, `Field.MultiSelect`, `Field.Toggle`, `Notice`, the `xl` Modal size and the pagination types are built.
 - Admin area: Audit and the dashboard are placeholders.
-- Needs verification: Button and Sidebar overflow fixes, Profile modal (long names, mobile widths, change-password-from-profile flow), catalog and users screens at mobile widths, `Field.Select` and `Field.Toggle` in both themes (including inside modals), and that the sidebar highlights Projects on `/admin/projects/[id]`
+- Needs verification: Button and Sidebar overflow fixes, Profile modal (long names, mobile widths, change-password-from-profile flow), catalog and users screens at mobile widths, `Field.Select`, `Field.MultiSelect` and `Field.Toggle` in both themes (including inside modals), the user form at mobile widths (cards, sticky footer, step indicator), and that the sidebar highlights Projects on `/admin/projects/[id]`
 
 ## Next
 
-1. Verify the overflow fixes, Profile modal, and the catalog and users screens (including `Field.Select` and `Field.Toggle`)
+1. Verify the overflow fixes, Profile modal, and the catalog and users screens (including the new form controls and the access form)
 2. Search and filters in the resource toolbar for the other screens (client-side for environments, server-side for projects and entities)
-3. Epic 4: the frontend for capabilities (R8, second part), then the frontend assignment screen with the "all projects" warning, using `GET /access/available` for the pickers
+3. Epic 4: the frontend for capabilities (R8, second part), so the UI hides actions the user cannot perform
 4. Show `requestId` in frontend error toasts, and later add frontend error reporting
 
 ## New resource checklist

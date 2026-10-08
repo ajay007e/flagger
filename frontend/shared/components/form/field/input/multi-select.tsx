@@ -9,6 +9,7 @@ import {
   useRef,
   useState,
   type KeyboardEvent,
+  type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
 
@@ -16,11 +17,18 @@ import { cn } from "@/shared/lib/utils";
 
 import { useFieldContext } from "../field.context";
 import { inputWrapperVariants } from "./input.styles";
-import type { FieldSelectProps, FieldSelectWidth } from "../field.types";
+import type { FieldMultiSelectProps, FieldSelectWidth } from "../field.types";
 
-const MAX_PANEL_HEIGHT = 240;
+const MAX_PANEL_HEIGHT = 280;
 const PANEL_GAP = 4;
 const VIEWPORT_MARGIN = 8;
+
+const WIDTH_CLASSES: Record<FieldSelectWidth, string> = {
+  full: "w-full",
+  sm: "w-full sm:w-36",
+  md: "w-full sm:w-48",
+  lg: "w-full sm:w-64",
+};
 
 interface PanelPosition {
   left: number;
@@ -30,19 +38,20 @@ interface PanelPosition {
   maxHeight: number;
 }
 
-const WIDTH_CLASSES: Record<FieldSelectWidth, string> = {
-  full: "w-full",
-  sm: "w-full sm:w-36",
-  md: "w-full sm:w-48",
-  lg: "w-full sm:w-64",
-};
+interface ListItem {
+  value: string;
+  label: ReactNode;
+  disabled?: boolean;
+  isAll?: boolean;
+}
 
-const FieldSelect = forwardRef<HTMLButtonElement, FieldSelectProps>(
+const FieldMultiSelect = forwardRef<HTMLButtonElement, FieldMultiSelectProps>(
   (
     {
       options,
       value,
       onValueChange,
+      allLabel,
       placeholder = "Select…",
       leftIcon,
       width = "full",
@@ -65,8 +74,28 @@ const FieldSelect = forwardRef<HTMLButtonElement, FieldSelectProps>(
     const [activeIndex, setActiveIndex] = useState(-1);
     const [position, setPosition] = useState<PanelPosition | null>(null);
 
-    const selectedIndex = options.findIndex((option) => option.value === value);
-    const selected = selectedIndex >= 0 ? options[selectedIndex] : null;
+    const items: ListItem[] = allLabel
+      ? [{ value: "", label: allLabel, isAll: true }, ...options]
+      : [...options];
+    const selectedOptions = options.filter((option) =>
+      value.includes(option.value),
+    );
+
+    let display: ReactNode;
+
+    if (value.length === 0) {
+      display = allLabel ?? placeholder;
+    } else if (value.length === 1 && selectedOptions.length === 1) {
+      display = selectedOptions[0]?.label;
+    } else {
+      display = `${value.length} selected`;
+    }
+
+    const muted = value.length === 0 && !allLabel;
+
+    function isChecked(item: ListItem): boolean {
+      return item.isAll ? value.length === 0 : value.includes(item.value);
+    }
 
     function setRefs(node: HTMLButtonElement | null) {
       triggerRef.current = node;
@@ -79,8 +108,8 @@ const FieldSelect = forwardRef<HTMLButtonElement, FieldSelectProps>(
     }
 
     function move(from: number, step: 1 | -1): number {
-      for (let i = from + step; i >= 0 && i < options.length; i += step) {
-        if (!options[i]?.disabled) {
+      for (let i = from + step; i >= 0 && i < items.length; i += step) {
+        if (!items[i]?.disabled) {
           return i;
         }
       }
@@ -89,20 +118,31 @@ const FieldSelect = forwardRef<HTMLButtonElement, FieldSelectProps>(
     }
 
     function openPanel() {
-      setActiveIndex(selectedIndex >= 0 ? selectedIndex : move(-1, 1));
+      setActiveIndex(move(-1, 1));
       setOpen(true);
     }
 
-    function choose(index: number) {
-      const option = options[index];
+    function toggle(index: number) {
+      const item = items[index];
 
-      if (!option || option.disabled) {
+      if (!item || item.disabled) {
         return;
       }
 
-      onValueChange(option.value);
-      setOpen(false);
-      triggerRef.current?.focus();
+      if (item.isAll) {
+        onValueChange([]);
+        return;
+      }
+
+      const next = value.includes(item.value)
+        ? value.filter((entry) => entry !== item.value)
+        : [...value, item.value];
+
+      onValueChange(
+        options
+          .filter((option) => next.includes(option.value))
+          .map((option) => option.value),
+      );
     }
 
     useLayoutEffect(() => {
@@ -197,7 +237,7 @@ const FieldSelect = forwardRef<HTMLButtonElement, FieldSelectProps>(
           if (open) {
             event.preventDefault();
             setActiveIndex(
-              event.key === "Home" ? move(-1, 1) : move(options.length, -1),
+              event.key === "Home" ? move(-1, 1) : move(items.length, -1),
             );
           }
           break;
@@ -209,7 +249,7 @@ const FieldSelect = forwardRef<HTMLButtonElement, FieldSelectProps>(
           if (!open) {
             openPanel();
           } else {
-            choose(activeIndex);
+            toggle(activeIndex);
           }
           break;
         }
@@ -276,9 +316,9 @@ const FieldSelect = forwardRef<HTMLButtonElement, FieldSelectProps>(
           ) : null}
 
           <span
-            className={cn("min-w-0 flex-1 truncate", !selected && "text-muted")}
+            className={cn("min-w-0 flex-1 truncate", muted && "text-muted")}
           >
-            {selected ? selected.label : placeholder}
+            {display}
           </span>
 
           <ChevronDown
@@ -296,6 +336,7 @@ const FieldSelect = forwardRef<HTMLButtonElement, FieldSelectProps>(
                 ref={panelRef}
                 id={listboxId}
                 role="listbox"
+                aria-multiselectable="true"
                 aria-label={ariaLabel}
                 style={{
                   position: "fixed",
@@ -307,33 +348,45 @@ const FieldSelect = forwardRef<HTMLButtonElement, FieldSelectProps>(
                 }}
                 className="z-[60] overflow-y-auto rounded-lg border border-border bg-surface p-1 shadow-lg"
               >
-                {options.map((option, index) => (
-                  <li
-                    key={option.value}
-                    id={`${listboxId}-opt-${index}`}
-                    role="option"
-                    aria-selected={index === selectedIndex}
-                    aria-disabled={option.disabled || undefined}
-                    onMouseDown={(event) => event.preventDefault()}
-                    onMouseEnter={() => {
-                      if (!option.disabled) {
-                        setActiveIndex(index);
-                      }
-                    }}
-                    onClick={() => choose(index)}
-                    className={cn(
-                      "flex cursor-pointer items-center justify-between gap-2 rounded-md px-2.5 py-2 text-sm",
-                      index === activeIndex && "bg-muted/10",
-                      index === selectedIndex && "font-medium text-primary",
-                      option.disabled && "cursor-not-allowed opacity-50",
-                    )}
-                  >
-                    <span className="min-w-0 truncate">{option.label}</span>
-                    {index === selectedIndex ? (
-                      <Check className="h-4 w-4 shrink-0" aria-hidden="true" />
-                    ) : null}
-                  </li>
-                ))}
+                {items.map((item, index) => {
+                  const checked = isChecked(item);
+
+                  return (
+                    <li
+                      key={item.isAll ? "__all" : item.value}
+                      id={`${listboxId}-opt-${index}`}
+                      role="option"
+                      aria-selected={checked}
+                      aria-disabled={item.disabled || undefined}
+                      onMouseDown={(event) => event.preventDefault()}
+                      onMouseEnter={() => {
+                        if (!item.disabled) {
+                          setActiveIndex(index);
+                        }
+                      }}
+                      onClick={() => toggle(index)}
+                      className={cn(
+                        "flex cursor-pointer items-center gap-2 rounded-md px-2.5 py-2 text-sm",
+                        index === activeIndex && "bg-muted/10",
+                        item.isAll && "font-medium",
+                        item.disabled && "cursor-not-allowed opacity-50",
+                      )}
+                    >
+                      <span
+                        aria-hidden="true"
+                        className={cn(
+                          "flex h-4 w-4 shrink-0 items-center justify-center rounded border",
+                          checked
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "border-border",
+                        )}
+                      >
+                        {checked ? <Check className="h-3 w-3" /> : null}
+                      </span>
+                      <span className="min-w-0 truncate">{item.label}</span>
+                    </li>
+                  );
+                })}
               </ul>,
               document.body,
             )
@@ -343,6 +396,6 @@ const FieldSelect = forwardRef<HTMLButtonElement, FieldSelectProps>(
   },
 );
 
-FieldSelect.displayName = "Field.Select";
+FieldMultiSelect.displayName = "Field.MultiSelect";
 
-export default FieldSelect;
+export default FieldMultiSelect;

@@ -1,17 +1,43 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 
-import { Button, Field, FormError, Modal, toast } from "@/shared/components";
+import {
+  Button,
+  ComponentLoader,
+  Field,
+  FormError,
+  Modal,
+  toast,
+} from "@/shared/components";
 import { ERROR_CODES } from "@/shared/constants";
+import { useApiQuery } from "@/shared/hooks";
 import { getErrorCode, getErrorMessage } from "@/shared/lib";
 
 import { USER_TYPE_LABELS, USER_TYPES } from "../users.constants";
 import { usersService } from "../users.service";
 import type { CreateUserInput, User, UserCredentials } from "../users.types";
 import { createUserSchema } from "../users.validator";
+import { userAccessService } from "../user-access.service";
+import type {
+  AccessAssignment,
+  AccessCardErrors,
+  AccessDraft,
+} from "../user-access.types";
+import {
+  applyAccessChanges,
+  planAccessChanges,
+  toDraft,
+  validateCards,
+} from "../user-access.utils";
+import { UserAccessSection } from "./user-access-section";
+
+const TYPE_OPTIONS = USER_TYPES.map((type) => ({
+  value: type,
+  label: USER_TYPE_LABELS[type],
+}));
 
 interface UserFormModalProps {
   open: boolean;
@@ -30,33 +56,93 @@ export function UserFormModal({
     <Modal
       open={open}
       onClose={onClose}
+      size="xl"
       title={user ? "Edit user" : "New user"}
     >
       {open ? (
-        <UserForm
-          key={user?.id ?? "new"}
-          user={user}
-          onClose={onClose}
-          onSaved={onSaved}
-        />
+        user ? (
+          <EditUserForm
+            key={user.id}
+            user={user}
+            onClose={onClose}
+            onSaved={onSaved}
+          />
+        ) : (
+          <UserForm
+            key="new"
+            user={null}
+            initialAssignments={[]}
+            onClose={onClose}
+            onSaved={onSaved}
+          />
+        )
       ) : null}
     </Modal>
   );
 }
 
-function UserForm({
+function EditUserForm({
   user,
   onClose,
   onSaved,
-}: Omit<UserFormModalProps, "open">) {
+}: Pick<UserFormModalProps, "onClose" | "onSaved"> & { user: User }) {
+  const request = useCallback(() => userAccessService.list(user.id), [user.id]);
+  const { data, loading, error, refetch } = useApiQuery(request);
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-start gap-3">
+        <FormError>{error}</FormError>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => void refetch()}>
+            Retry
+          </Button>
+          <Button variant="ghost" size="sm" onClick={onClose}>
+            Close
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (loading || !data) {
+    return <ComponentLoader label="Loading…" />;
+  }
+
+  return (
+    <UserForm
+      user={user}
+      initialAssignments={data}
+      onClose={onClose}
+      onSaved={onSaved}
+    />
+  );
+}
+
+function UserForm({
+  user,
+  initialAssignments,
+  onClose,
+  onSaved,
+}: Pick<UserFormModalProps, "onClose" | "onSaved"> & {
+  user: User | null;
+  initialAssignments: AccessAssignment[];
+}) {
   const [formError, setFormError] = useState<string | null>(null);
+  const [cards, setCards] = useState<AccessDraft[]>(() =>
+    initialAssignments.map(toDraft),
+  );
+  const [cardErrors, setCardErrors] = useState<
+    Record<string, AccessCardErrors>
+  >({});
 
   const {
     register,
     handleSubmit,
     setError,
-    formState: { errors, isSubmitting },
     control,
+    watch,
+    formState: { errors, isSubmitting },
   } = useForm<CreateUserInput>({
     resolver: zodResolver(createUserSchema),
     defaultValues: {
@@ -66,27 +152,64 @@ function UserForm({
     },
   });
 
+  const withAccess = watch("type") === "user";
+
+  function changeCards(next: AccessDraft[]) {
+    setCards(next);
+    setCardErrors({});
+  }
+
   async function onSubmit(values: CreateUserInput): Promise<void> {
     setFormError(null);
 
+    const accessEnabled = values.type === "user";
+    const checked = accessEnabled ? validateCards(cards) : null;
+
+    if (checked && !checked.valid) {
+      setCardErrors(checked.errors);
+      return;
+    }
+
     try {
+      let credentials: UserCredentials | undefined;
+      let userId: number;
+
       if (user) {
         await usersService.update(user.id, {
           name: values.name,
           type: values.type,
         });
+        userId = user.id;
+      } else {
+        const { data: body } = await usersService.create(values);
+
+        if (!body.success) {
+          throw new Error(body.message);
+        }
+
+        credentials = body.data;
+        userId = body.data.id;
+      }
+
+      const failures = checked
+        ? await applyAccessChanges(
+            userId,
+            planAccessChanges(initialAssignments, checked.items),
+          )
+        : [];
+
+      if (failures.length > 0) {
+        const noun = failures.length === 1 ? "change" : "changes";
+
+        toast.error(
+          `${user ? "User updated" : "User created"}, but ${failures.length} access ${noun} failed: ${failures[0] ?? ""}`,
+          { duration: 0 },
+        );
+      } else if (user) {
         toast.success("User updated");
-        onSaved();
-        return;
       }
 
-      const { data: body } = await usersService.create(values);
-
-      if (!body.success) {
-        throw new Error(body.message);
-      }
-
-      onSaved(body.data);
+      onSaved(credentials);
     } catch (error) {
       const code = getErrorCode(error);
 
@@ -100,11 +223,6 @@ function UserForm({
     }
   }
 
-  const TYPE_OPTIONS = USER_TYPES.map((type) => ({
-    value: type,
-    label: USER_TYPE_LABELS[type],
-  }));
-
   return (
     <form
       onSubmit={handleSubmit(onSubmit)}
@@ -113,38 +231,46 @@ function UserForm({
     >
       <FormError>{formError}</FormError>
 
-      <Field
-        label="Email"
-        required
-        error={errors.email?.message}
-        helperText={
-          user
-            ? "The email can't be changed."
-            : "A temporary password is generated after you create the user."
-        }
-      >
-        <Field.Input
-          type="email"
-          readOnly={Boolean(user)}
-          autoFocus={!user}
-          disabled={isSubmitting}
-          {...register("email")}
-        />
-      </Field>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field
+          label="Email"
+          required
+          className="min-w-0"
+          error={errors.email?.message}
+          helperText={
+            user
+              ? "The email can't be changed."
+              : "A temporary password is generated after you create the user."
+          }
+        >
+          <Field.Input
+            type="email"
+            readOnly={Boolean(user)}
+            autoFocus={!user}
+            disabled={isSubmitting}
+            {...register("email")}
+          />
+        </Field>
 
-      <Field label="Name" required error={errors.name?.message}>
-        <Field.Input
-          autoFocus={Boolean(user)}
-          disabled={isSubmitting}
-          {...register("name")}
-        />
-      </Field>
+        <Field
+          label="Name"
+          required
+          className="min-w-0"
+          error={errors.name?.message}
+        >
+          <Field.Input
+            autoFocus={Boolean(user)}
+            disabled={isSubmitting}
+            {...register("name")}
+          />
+        </Field>
+      </div>
 
       <Field
         label="Type"
         required
         error={errors.type?.message}
-        helperText="Admins bypass every permission check."
+        helperText="Admins bypass every permission check, so they have no access assignments."
       >
         <Controller
           control={control}
@@ -162,7 +288,16 @@ function UserForm({
         />
       </Field>
 
-      <div className="flex justify-end gap-2">
+      {withAccess ? (
+        <UserAccessSection
+          cards={cards}
+          errors={cardErrors}
+          disabled={isSubmitting}
+          onChange={changeCards}
+        />
+      ) : null}
+
+      <div className="sticky bottom-0 -mx-4 -mb-4 flex justify-end gap-2 border-t border-border bg-surface p-4">
         <Button
           type="button"
           variant="outline"

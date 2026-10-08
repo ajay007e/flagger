@@ -12,3 +12,9 @@ export async function getAvailableAccess(
 
   res.json({ success: true, data });
 }
+
+export async function getRoles(_req: Request, res: Response): Promise<void> {
+  const data = await accessService.getAvailableRoles();
+
+  res.json({ success: true, data });
+}

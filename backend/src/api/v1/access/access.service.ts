@@ -2,8 +2,9 @@ import { prisma } from "@/config/db";
 import { resolveScope, toIdFilter, type AccessUser } from "@/lib/authorization";
 import { environmentRepository } from "@/repositories/environment";
 import { projectRepository } from "@/repositories/project";
+import { roleRepository } from "@/repositories/role";
 
-import type { AvailableAccess } from "./access.types";
+import type { AvailableAccess, AvailableItem } from "./access.types";
 
 export async function getAvailableAccess(
   user: AccessUser,
@@ -25,4 +26,15 @@ export async function getAvailableAccess(
     projects: projects.map(({ id, key, name }) => ({ id, key, name })),
     environments: environments.map(({ id, key, name }) => ({ id, key, name })),
   };
+}
+
+export async function getAvailableRoles(): Promise<AvailableItem[]> {
+  const roles = await roleRepository.findAll(prisma, { includeDeleted: false });
+
+  return roles.map(({ id, key, name, description }) => ({
+    id,
+    key,
+    name,
+    description,
+  }));
 }
