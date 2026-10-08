@@ -11,25 +11,21 @@ import { ResourceToolbar } from "./resource-toolbar";
 interface ResourceListProps {
   title: string;
   description?: string;
-  /** "page" renders an h1, "section" an h2 (e.g. entities inside a project). */
   level?: "page" | "section";
   createLabel: string;
   onCreate: () => void;
-  showDeleted: boolean;
-  onShowDeletedChange: (value: boolean) => void;
+  showDeleted?: boolean;
+  onShowDeletedChange?: (value: boolean) => void;
   loading: boolean;
   error: string | null;
   onRetry: () => void;
   isEmpty: boolean;
   emptyText: string;
   children: ReactNode;
-  /** Rendered in the toolbar's search slot. */
   search?: ReactNode;
-  /** Rendered in the toolbar's filters slot. */
   filters?: ReactNode;
 }
 
-/** Header, "show deleted" toggle and loading/error/empty states for an admin list. */
 export function ResourceList({
   title,
   description,

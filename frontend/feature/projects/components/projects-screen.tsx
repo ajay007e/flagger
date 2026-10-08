@@ -2,11 +2,12 @@
 
 import { Boxes, Pencil, RotateCcw, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import {
   Button,
   ConfirmDialog,
+  Pager,
   ResourceList,
   ResourceRow,
 } from "@/shared/components";
@@ -17,16 +18,30 @@ import { projectsService } from "../projects.service";
 import type { Project } from "../projects.types";
 import { ProjectFormModal } from "./project-form-modal";
 
+import { PROJECTS_PAGE_SIZE } from "../projects.constants";
+
 export function ProjectsScreen() {
   const router = useRouter();
   const [showDeleted, setShowDeleted] = useState(false);
-  const { data, loading, error, refetch } = useProjects(showDeleted);
+  const [page, setPage] = useState(1);
+  const { data, loading, error, refetch } = useProjects(
+    page,
+    PROJECTS_PAGE_SIZE,
+    showDeleted,
+  );
   const { busy, run } = useAction(refetch);
 
   const [form, setForm] = useState<{ project: Project | null } | null>(null);
   const [toDelete, setToDelete] = useState<Project | null>(null);
 
-  const projects = data ?? [];
+  const projects = data?.items ?? [];
+  const meta = data?.meta;
+
+  useEffect(() => {
+    if (data && data.items.length === 0 && page > 1) {
+      setPage(Math.max(1, data.meta.totalPages));
+    }
+  }, [data, page]);
 
   async function confirmDelete(): Promise<void> {
     if (!toDelete) return;
@@ -43,7 +58,10 @@ export function ProjectsScreen() {
         createLabel="New project"
         onCreate={() => setForm({ project: null })}
         showDeleted={showDeleted}
-        onShowDeletedChange={setShowDeleted}
+        onShowDeletedChange={(value) => {
+          setShowDeleted(value);
+          setPage(1);
+        }}
         loading={loading && !data}
         error={error}
         onRetry={refetch}
@@ -111,6 +129,17 @@ export function ProjectsScreen() {
           );
         })}
       </ResourceList>
+
+      {meta ? (
+        <Pager
+          className="mt-6"
+          page={meta.page}
+          totalPages={meta.totalPages}
+          total={meta.total}
+          disabled={loading}
+          onPageChange={setPage}
+        />
+      ) : null}
 
       <ProjectFormModal
         open={form !== null}

@@ -1,5 +1,5 @@
-import { AdminPlaceholder } from "@/feature/admin";
+import { UsersScreen } from "@/feature/users";
 
 export default function AdminUsersPage() {
-  return <AdminPlaceholder title="Users" />;
+  return <UsersScreen />;
 }

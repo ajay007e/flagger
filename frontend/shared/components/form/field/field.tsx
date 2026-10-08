@@ -12,6 +12,8 @@ import {
 } from "./field.styles";
 import FieldTextarea from "./input/textarea";
 import type { FieldComponent, FieldProps, FieldState } from "./field.types";
+import FieldSelect from "./input/select";
+import FieldToggle from "./input/toggle";
 
 function FieldBase({
   id,
@@ -107,6 +109,8 @@ function FieldBase({
 const Field = Object.assign(FieldBase, {
   Input: FieldInput,
   Textarea: FieldTextarea,
+  Select: FieldSelect,
+  Toggle: FieldToggle,
 }) as FieldComponent;
 
 export default Field;

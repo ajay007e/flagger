@@ -1,20 +1,15 @@
 import type { ReactNode } from "react";
+import { Field } from "@/shared/components/form";
 
 interface ResourceToolbarProps {
-  showDeleted: boolean;
-  onShowDeletedChange: (value: boolean) => void;
-  /** Grows to fill the row. Put the search input here later. */
+  showDeleted?: boolean;
+  onShowDeletedChange?: (value: boolean) => void;
   search?: ReactNode;
-  /** Sits before the "Show deleted" toggle. Put filter selects here later. */
   filters?: ReactNode;
 }
 
-/**
- * The bar above an admin list. Stacks on mobile (search, then filters, then
- * the toggle) and becomes one row from `sm` up.
- */
 export function ResourceToolbar({
-  showDeleted,
+  showDeleted = false,
   onShowDeletedChange,
   search,
   filters,
@@ -26,15 +21,14 @@ export function ResourceToolbar({
       <div className="flex flex-wrap items-center gap-3 sm:ml-auto">
         {filters}
 
-        <label className="flex h-10 cursor-pointer select-none items-center gap-2 rounded-lg border border-border px-3 text-sm text-muted hover:bg-muted/10">
-          <input
-            type="checkbox"
-            className="h-4 w-4"
+        {onShowDeletedChange ? (
+          <Field.Toggle
+            label="Show deleted"
             checked={showDeleted}
-            onChange={(event) => onShowDeletedChange(event.target.checked)}
+            onCheckedChange={onShowDeletedChange}
+            className="h-10 rounded-lg border border-border px-3 text-muted hover:bg-muted/10"
           />
-          Show deleted
-        </label>
+        ) : null}
       </div>
     </div>
   );
