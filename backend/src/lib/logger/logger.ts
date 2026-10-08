@@ -30,7 +30,7 @@ const root =
           target: "pino-pretty",
           options: {
             colorize: true,
-            ignore: "service,env,event,scope,data,meta,traceId",
+            ignore: "service,env,event,scope,data,meta,traceId,requestId",
             messageFormat: "\u001b[36m[{scope}]\u001b[0m - {msg}",
           },
         },

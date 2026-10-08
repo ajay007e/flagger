@@ -10,6 +10,7 @@ import type FieldInput from "./input/input";
 import type FieldSelect from "./input/select";
 import type FieldTextarea from "./input/textarea";
 import type FieldToggle from "./input/toggle";
+import FieldMultiSelect from "./input/multi-select";
 
 export type FieldSize = "sm" | "md" | "lg";
 export type FieldVariant = "outline" | "filled" | "ghost";
@@ -90,9 +91,25 @@ export interface FieldToggleProps extends Omit<
   label?: ReactNode;
 }
 
+export interface FieldMultiSelectProps {
+  options: readonly FieldSelectOption[];
+  value: string[];
+  onValueChange: (value: string[]) => void;
+  allLabel?: ReactNode;
+  placeholder?: ReactNode;
+  leftIcon?: ReactNode;
+  width?: FieldSelectWidth;
+  disabled?: boolean;
+  id?: string;
+  className?: string;
+  onBlur?: () => void;
+  "aria-label"?: string;
+}
+
 export interface FieldComponent extends FC<FieldProps> {
   Input: typeof FieldInput;
   Textarea: typeof FieldTextarea;
   Select: typeof FieldSelect;
   Toggle: typeof FieldToggle;
+  MultiSelect: typeof FieldMultiSelect;
 }

@@ -14,6 +14,7 @@ import FieldTextarea from "./input/textarea";
 import type { FieldComponent, FieldProps, FieldState } from "./field.types";
 import FieldSelect from "./input/select";
 import FieldToggle from "./input/toggle";
+import FieldMultiSelect from "./input/multi-select";
 
 function FieldBase({
   id,
@@ -110,6 +111,7 @@ const Field = Object.assign(FieldBase, {
   Input: FieldInput,
   Textarea: FieldTextarea,
   Select: FieldSelect,
+  MultiSelect: FieldMultiSelect,
   Toggle: FieldToggle,
 }) as FieldComponent;
 
