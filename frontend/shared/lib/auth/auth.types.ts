@@ -8,7 +8,10 @@ export interface SessionUser {
   mustChangePassword: boolean;
 }
 
+export type AuthReason = "expired";
+
 export interface AuthState {
   status: AuthStatus;
   user: SessionUser | null;
+  reason?: AuthReason;
 }

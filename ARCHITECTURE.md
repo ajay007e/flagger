@@ -35,20 +35,22 @@ Built: admin and normal user areas, diagnosis service (`docs/diagnosis.md`), str
 
 ## Frontend structure
 
-- `app/`: routes and layouts only (`/admin/*` is guarded; the admin layout also sets page padding and max width). The app shell (sidebar + scrollable main, no navbar or footer) lives here because it composes several features.
+- `app/`: routes and layouts only (`/admin/*` is guarded; the admin layout also sets page padding and max width). The app shell (sidebar + scrollable main, no navbar or footer) lives here because it composes several features. The root `not-found.tsx` and `error.tsx` render the shared state screens.
 - `feature/<name>/`: domain logic + components (`.service`, `.hook`, `.validator`, `.types`, `.constants`, `components/`, exported via `index.ts`). List features keep their page size in their constants (`USERS_PAGE_SIZE`, `PROJECTS_PAGE_SIZE`, `ENTITIES_PAGE_SIZE`).
 - `feature/users/` also holds the access assignment form (`user-access.*` files and the `access-card` and `user-access-section` components), because features don't import each other.
 - `feature/diagnosis/` + `shared/lib/diagnosis/`: `DiagnosisGate` wraps the app shell. The store is in `shared/lib` because `api.ts` flips it.
+- `shared/lib/auth/`: the auth store (`status`, `user`, and an optional `reason`). It is in `shared/lib` for the same reason: `api.ts` flips it.
 - `shared/components/{ui,layout,form,feedback}/`: reusable primitives
   - `ui`: Button, Badge, Avatar, Modal (sizes `sm` to `xl`), ConfirmDialog, Popover
   - `form`: `Field` (with `Field.Input`, `Field.Textarea`, `Field.Select`, `Field.MultiSelect`, `Field.Toggle`), `FormError`
-  - `feedback`: Toast, Loader, `Notice` (themed inline warning or info)
+  - `feedback`: Toast, Loader, `Notice` (themed inline warning or info), and the state screens (`StateScreen`, `NoAccessState`, `NotFoundState`, `ErrorState`, `ApiErrorScreen`)
   - `layout`: Sidebar, `Pager`, and the `resource-list` kit
+- `shared/components/feedback/state-screen/`: `StateScreen` is the centered icon, title, description and optional action block. `NoAccessState`, `NotFoundState` and `ErrorState` are its ready-made variants, and each takes an optional `action` node. `ApiErrorScreen` maps an error code (`FORBIDDEN`, `NOT_FOUND`) to the matching variant and renders nothing for other codes.
 - `shared/components/layout/resource-list/`: the admin list kit. `ResourceList` (header, loading/error/empty states), `ResourceToolbar` (optional show-deleted toggle, plus `search` and `filters` slots) and `ResourceRow` (card row, stacks on mobile).
 - `shared/components/layout/pager/`: `Pager` (previous/next, page and total text). It renders nothing when there is only one page and sits after `ResourceList`, not inside it.
 - `shared/{lib,hooks,config,theme,types,constants}/`
-  - `lib`: API client and error helpers
-  - `hooks`: `api-query.hook` (read on mount), `use-action.hook` (one-off mutations: busy state, error toast, optional success toast, then refetch), `use-debounced-value.hook`
+  - `lib`: API client (with the global response interceptor) and error helpers
+  - `hooks`: `api-query.hook` (read on mount, returns `data`, `loading`, `error`, `errorCode`, `refetch`), `use-action.hook` (one-off mutations: busy state, error toast, optional success toast, then refetch), `use-debounced-value.hook`
   - `types`: `ApiResponse`, `ErrorResponse`, `PaginatedData`, `PaginationMeta`
   - `constants`: `ERROR_CODES`
 
@@ -57,7 +59,7 @@ Built: admin and normal user areas, diagnosis service (`docs/diagnosis.md`), str
 - `/admin/users`: list (search, type and status filters, pager), create (two steps: details, then access), edit (including access), disable, enable, reset password, delete, restore
 - `/admin/environments`: list, create, edit, delete, restore, reorder
 - `/admin/projects`: list (pager), create, edit, delete, restore
-- `/admin/projects/[id]`: the project's entities (list with pager, create, edit, delete, restore)
+- `/admin/projects/[id]`: the project's entities (list with pager, create, edit, delete, restore). A missing, malformed or hidden project id shows the not-found state.
 - Audit and the dashboard are still placeholders.
 
 ## Key decisions
@@ -159,6 +161,9 @@ Built: admin and normal user areas, diagnosis service (`docs/diagnosis.md`), str
 - **`Field.Select` and `Field.MultiSelect` are custom listboxes, not native `<select>`.** Their panels render in a portal with fixed positioning, so modals and scroll containers can't clip them, and they flip upward when there is no room below. `Field.Select` takes `options`, `value`, `onValueChange` and a `width` prop (`sm`, `md`, `lg`, `full`) for a fixed trigger width. `Field.MultiSelect` takes a `string[]` value and an optional `allLabel`: choosing it clears the selection, and an empty selection means "all". Both close on outside click, outside scroll and resize, and Escape closes only the dropdown, not the parent modal.
 - **`Field.Toggle` is a controlled switch** (`checked`, `onCheckedChange`, optional `label`). It is used for "Show deleted".
 - **`Notice` is the inline banner for warnings and info** (`variant="warning" | "info"`). `FormError` stays for form-level errors, and toasts are for transient results.
+- **Session and connectivity errors are handled once, in the axios response interceptor** (`shared/lib/api.ts`). No response or a 503 flips the diagnosis store `DOWN`, and `DiagnosisGate` shows the unreachable screen. `SESSION_EXPIRED` calls `setUnauthenticated("expired")`, and the login modal shows an info `Notice` ("Your session expired") above the form. `UNAUTHENTICATED` calls `setUnauthenticated()` with no reason, so a first visit with no session shows no message. A successful login clears the reason. Screens never handle these cases themselves.
+- **403 and 404 are not handled globally, screens decide.** `useApiQuery` exposes `errorCode`. A page that reads one resource shows `NotFoundState` for `NOT_FOUND` (the project page does) and `NoAccessState` for `FORBIDDEN`, or both through `ApiErrorScreen`. Because hidden and missing resources return the same 404 (R7), the not-found state never reveals whether the resource exists. List screens need no state screen: scoped lists return empty results, not 403 or 404. Failed forms and actions keep their toasts and banners.
+- **Unmatched routes and render errors use the same screens.** `app/not-found.tsx` renders `NotFoundState` and `app/error.tsx` renders `ErrorState` with a "Try again" button that calls `reset`. Both render inside the app shell.
 
 ## Gotchas
 
@@ -226,6 +231,10 @@ Built: admin and normal user areas, diagnosis service (`docs/diagnosis.md`), str
 - Escape inside an open `Field.Select` or `Field.MultiSelect` must not reach the parent `Modal`. They stop propagation while their panel is open.
 - `ResourceList` and `ResourceToolbar` show the "Show deleted" toggle only when `onShowDeletedChange` is passed. Users omit it and reach deleted rows through the status filter.
 - Card keys in the access form (`AccessDraft.key`) are the `assignmentId` for loaded cards and a counter value for new ones. Keep them stable, because each card owns its entity query.
+- `Button` renders a real `<button>` and cannot act as a link. State screens take an `action` node, so use `router.push` from a client component or a `Link` for navigation.
+- `setUnauthenticated` ignores calls while the status is already `unauthenticated`, so the first reason wins and several parallel 401s don't re-render. Any new code path that logs the user out must pass the reason it wants shown.
+- `app/not-found.tsx` and `app/error.tsx` are client components because they read the auth store and `reset`. A page that calls `notFound()` (the project page does for a malformed id) renders `app/not-found.tsx`.
+- A page that reads one resource must check `errorCode` before `error`, or the generic `FormError` hides the state screen.
 
 ## Current state
 
@@ -238,16 +247,18 @@ Built: admin and normal user areas, diagnosis service (`docs/diagnosis.md`), str
 - Access (frontend, W7): the assignment cards are built into the create and edit user form (project or all with a warning, role, entities, environments, summary, add and remove). Create is a two-step form and edit is a single form. Not built: a standalone access screen.
 - Users (backend): admin-only user management is complete: create with a temporary password (U1), list with pagination, search and filters (U2), edit name and type (U3), disable and enable (U4), reset password (U5), delete and restore (U6). The last-admin guard (U7) is called by U3, U4 and U6. Not built: last login in the list.
 - Users (frontend, W6): the admin users screen is built, with search, type and status filters, a pager, create and reset with a one-time temporary password, edit, disable, enable, delete and restore behind confirmations, and API error states. Not built: last login in the list.
-- Shared frontend: `Pager`, `useDebouncedValue`, `Field.Select`, `Field.MultiSelect`, `Field.Toggle`, `Notice`, the `xl` Modal size and the pagination types are built.
+- Error and access states (frontend, W9): built. The axios interceptor handles session expiry and unreachable servers centrally, the login modal shows a "session expired" notice, the shared state screens exist (no access, not found, error), `useApiQuery` exposes `errorCode`, the project page shows the not-found state, and `app/not-found.tsx` and `app/error.tsx` are in place. `NoAccessState` is built but no screen renders it yet, because no read returns 403 today.
+- Flagger area shell (W8): closed as won't do. The API already scopes everything per user. The flags UI will reuse `GET /access/available` for its project and environment pickers, keep the selection in the URL, and show an empty state when the user has no access.
+- Shared frontend: `Pager`, `useDebouncedValue`, `Field.Select`, `Field.MultiSelect`, `Field.Toggle`, `Notice`, the state screens, the `xl` Modal size and the pagination types are built.
 - Admin area: Audit and the dashboard are placeholders.
-- Needs verification: Button and Sidebar overflow fixes, Profile modal (long names, mobile widths, change-password-from-profile flow), catalog and users screens at mobile widths, `Field.Select`, `Field.MultiSelect` and `Field.Toggle` in both themes (including inside modals), the user form at mobile widths (cards, sticky footer, step indicator), and that the sidebar highlights Projects on `/admin/projects/[id]`
+- Needs verification: Button and Sidebar overflow fixes, Profile modal (long names, mobile widths, change-password-from-profile flow), catalog and users screens at mobile widths, `Field.Select`, `Field.MultiSelect` and `Field.Toggle` in both themes (including inside modals), the user form at mobile widths (cards, sticky footer, step indicator), that the sidebar highlights Projects on `/admin/projects/[id]`, the state screens in both themes and at mobile widths, and that the backend sends `SESSION_EXPIRED` (not only `UNAUTHENTICATED`) for an expired session
 
 ## Next
 
-1. Verify the overflow fixes, Profile modal, and the catalog and users screens (including the new form controls and the access form)
+1. Verify the overflow fixes, Profile modal, and the catalog and users screens (including the new form controls, the access form and the state screens)
 2. Search and filters in the resource toolbar for the other screens (client-side for environments, server-side for projects and entities)
 3. Epic 4: the frontend for capabilities (R8, second part), so the UI hides actions the user cannot perform
-4. Show `requestId` in frontend error toasts, and later add frontend error reporting
+4. Show `requestId` in frontend error toasts and in the error state, and later add frontend error reporting
 
 ## New resource checklist
 
@@ -264,6 +275,6 @@ Backend:
 Frontend:
 
 1. `feature/<resource>/` with the list built on `ResourceList` / `ResourceRow`, and a `Pager` plus a `*_PAGE_SIZE` constant for paginated lists
-2. The matching `app/admin/<resource>/page.tsx`
+2. The matching `app/admin/<resource>/page.tsx`, with a not-found or no-access state if it reads a single resource
 3. A nav entry in `ADMIN_NAV_ITEMS`
 4. Any new API error code added to the frontend `ERROR_CODES`

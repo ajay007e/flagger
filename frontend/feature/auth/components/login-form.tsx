@@ -14,13 +14,6 @@ import { authService } from "../auth.service";
 import { loginSchema } from "../auth.validator";
 import type { LoginInput } from "../auth.types";
 
-/**
- * On failure, shows a form-level error banner (wrong credentials, a network
- * problem) — never a toast. Toasts are for incidental feedback; a failed
- * login is the direct, expected result of submitting this form, so the error
- * belongs on the form itself. Invalid input (bad email format, empty
- * password) is shown inline per field, via zod + react-hook-form.
- */
 export function LoginForm() {
   const router = useRouter();
   const [formError, setFormError] = useState<string | null>(null);
