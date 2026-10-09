@@ -2,18 +2,11 @@ import "dotenv/config";
 
 import { z } from "zod";
 
-import {
-  DEFAULT_PORT,
-  DEFAULT_SLOW_QUERY_ERROR_MS,
-  DEFAULT_SLOW_QUERY_WARN_MS,
-  LOG_LEVELS,
-  LOG_SCOPES,
-  NODE_ENVIRONMENTS,
-  PLACEHOLDER_PREFIX,
-  SECRET_MIN_LENGTH,
-} from "../constants";
+import { LOG_SCOPES } from "../constants";
 
-const secret = z.string().min(SECRET_MIN_LENGTH);
+const PLACEHOLDER_PREFIX = "change-me";
+
+const secret = z.string().min(32);
 const milliseconds = z.coerce.number().int().positive();
 
 const origin = z
@@ -30,23 +23,27 @@ const csv = (value: string) =>
 
 const envSchema = z
   .object({
-    NODE_ENV: z.enum(NODE_ENVIRONMENTS).default("development"),
-    PORT: z.coerce.number().int().min(1).max(65535).default(DEFAULT_PORT),
+    NODE_ENV: z
+      .enum(["development", "test", "production"])
+      .default("development"),
+    PORT: z.coerce.number().int().min(1).max(65535).default(4000),
     DATABASE_URL: z.url({ protocol: /^mysql$/ }),
     REDIS_URL: z.url({ protocol: /^rediss?$/ }),
     SESSION_SECRET: secret,
     SETUP_API_KEY: secret,
     ALLOWED_ORIGINS: z.string().transform(csv).pipe(z.array(origin).min(1)),
     AUDIT_SPOOL_PATH: z.string().min(1).default("var/audit-spool.jsonl"),
-    LOG_LEVEL: z.enum(LOG_LEVELS).optional(),
+    LOG_LEVEL: z
+      .enum(["trace", "debug", "info", "warn", "error", "fatal", "silent"])
+      .optional(),
     LOG_SCOPES: z
       .string()
       .transform(csv)
       .pipe(z.array(z.enum(LOG_SCOPES)))
       .optional(),
     LOG_SYNC: z.stringbool().default(true),
-    LOG_SLOW_QUERY_WARN_MS: milliseconds.default(DEFAULT_SLOW_QUERY_WARN_MS),
-    LOG_SLOW_QUERY_ERROR_MS: milliseconds.default(DEFAULT_SLOW_QUERY_ERROR_MS),
+    LOG_SLOW_QUERY_WARN_MS: milliseconds.default(500),
+    LOG_SLOW_QUERY_ERROR_MS: milliseconds.default(2000),
     TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(10).optional(),
   })
   .superRefine((values, ctx) => {
