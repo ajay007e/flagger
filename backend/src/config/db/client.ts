@@ -2,9 +2,8 @@ import { PrismaMariaDb } from "@prisma/adapter-mariadb";
 
 import { env } from "@/config/env";
 import { PrismaClient } from "@/generated/prisma/client";
-import { getLogger, logContext } from "@/lib/logger";
 
-const log = getLogger("db");
+import { logError, logQuery, logWarning } from "./logging";
 
 const url = new URL(env.databaseUrl);
 url.searchParams.set("connectTimeout", "2000");
@@ -12,10 +11,8 @@ url.searchParams.set("acquireTimeout", "2000");
 url.searchParams.set("socketTimeout", "3000");
 url.searchParams.set("allowPublicKeyRetrieval", "true");
 
-const adapter = new PrismaMariaDb(url.toString());
-
 export const prisma = new PrismaClient({
-  adapter,
+  adapter: new PrismaMariaDb(url.toString()),
   log: [
     { emit: "event", level: "query" },
     { emit: "event", level: "warn" },
@@ -23,51 +20,9 @@ export const prisma = new PrismaClient({
   ],
 });
 
-prisma.$on("query", (event) => {
-  const store = logContext.getStore();
-
-  if (store) {
-    store.counters.queryCount += 1;
-    store.counters.dbTimeMs += event.duration;
-  }
-
-  const durationMs = Math.round(event.duration * 10) / 10;
-  const data = { sql: event.query, durationMs };
-
-  if (event.duration >= env.slowQueryErrorMs) {
-    log.error(
-      "db.query.slow",
-      `Database query took ${durationMs}ms, above the ${env.slowQueryErrorMs}ms error threshold`,
-      { data },
-    );
-    return;
-  }
-
-  if (event.duration >= env.slowQueryWarnMs) {
-    log.warn(
-      "db.query.slow",
-      `Database query took ${durationMs}ms, above the ${env.slowQueryWarnMs}ms slow threshold`,
-      { data },
-    );
-    return;
-  }
-
-  log.trace("db.query", `Database query completed in ${durationMs}ms`, {
-    data,
-  });
-});
-
-prisma.$on("warn", (event) => {
-  log.warn("db.warn", "Prisma reported a warning", {
-    data: { target: event.target },
-  });
-});
-
-prisma.$on("error", (event) => {
-  log.error("db.error", "Prisma reported an error", {
-    data: { target: event.target },
-  });
-});
+prisma.$on("query", logQuery);
+prisma.$on("warn", logWarning);
+prisma.$on("error", logError);
 
 export async function connectDatabase(): Promise<void> {
   try {
