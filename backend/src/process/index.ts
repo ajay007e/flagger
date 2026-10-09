@@ -1,4 +1,3 @@
-export { registerCrashHandlers } from "./crash-handlers";
-export { connectDependencies, watchRedis } from "./dependencies";
-export { exitAfterFlush } from "./exit";
+export { connectDependencies } from "./dependencies";
 export { registerShutdown } from "./shutdown";
+export { registerProcess } from "./bootstrap";

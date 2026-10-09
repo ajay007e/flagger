@@ -8,7 +8,7 @@ import { exitAfterFlush } from "./exit";
 const SHUTDOWN_TIMEOUT_MS = 10_000;
 const log = getLogger("process");
 
-export function registerShutdown(server: Server, stopAuditDrain: () => void) {
+export function registerShutdown(server: Server, stoppers: Array<() => void>) {
   let shuttingDown = false;
 
   function shutdown(sig: NodeJS.Signals): void {
@@ -28,7 +28,7 @@ export function registerShutdown(server: Server, stopAuditDrain: () => void) {
     }, SHUTDOWN_TIMEOUT_MS);
     forceTimer.unref();
 
-    stopAuditDrain();
+    for (const stop of stoppers) stop();
 
     server.close(() => {
       void Promise.allSettled([disconnectDatabase(), disconnectRedis()]).then(
@@ -44,8 +44,6 @@ export function registerShutdown(server: Server, stopAuditDrain: () => void) {
         },
       );
     });
-
-    server.closeIdleConnections();
   }
 
   for (const sig of ["SIGTERM", "SIGINT"] as const) {

@@ -5,7 +5,7 @@ import { getLogger } from "@/lib/logger";
 const dbLog = getLogger("db");
 const redisLog = getLogger("redis");
 
-export function watchRedis(): void {
+export function registerRedisHealthListeners(): void {
   redis.on("error", (error) =>
     diagnosis.markDown(`redis: ${describeError(error)}`),
   );

@@ -1,41 +1,25 @@
 import { app } from "@/app";
 import { env } from "@/config";
-import {
-  registerDefaultHealthChecks,
-  registerDiagnosisAudit,
-  startAuditDrain,
-  startDiagnosisScheduler,
-} from "@/lib";
+import { startAuditDrain, startDiagnosisScheduler } from "@/lib";
 import { getLogger } from "@/lib/logger";
 import {
   connectDependencies,
-  exitAfterFlush,
-  registerCrashHandlers,
+  registerProcess,
   registerShutdown,
-  watchRedis,
 } from "@/process";
 
 const log = getLogger("process");
 
-registerDefaultHealthChecks();
-registerDiagnosisAudit();
-watchRedis();
-registerCrashHandlers();
+registerProcess();
 
 const server = app.listen(env.port, () => {
   log.info("process.start", "Server started", {
     data: { port: env.port, pid: process.pid, nodeVersion: process.version },
   });
 
-  startDiagnosisScheduler();
-  registerShutdown(server, startAuditDrain());
-  connectDependencies();
-});
+  const stopScheduler = startDiagnosisScheduler();
+  const stopAuditDrain = startAuditDrain();
 
-server.on("error", (error) => {
-  log.fatal("process.listen.failed", "Server could not start listening", {
-    err: error,
-    data: { port: env.port },
-  });
-  exitAfterFlush(1);
+  registerShutdown(server, [stopScheduler, stopAuditDrain]);
+  void connectDependencies();
 });
