@@ -18,17 +18,28 @@ Built: admin and normal user areas, diagnosis service (`docs/diagnosis.md`), str
 
 ## Backend structure
 
+- `src/server.ts`: the entry point. It calls `registerProcess()`, starts listening, then starts the background jobs, hands their stop functions to `registerShutdown` and connects the dependencies in the background.
+- `src/process/`: process lifecycle, split by job
+  - `bootstrap` (`registerProcess`: the one-time registrations that must happen before listening: default health checks, diagnosis audit, Redis health listeners, crash handlers)
+  - `crash-handlers` (`unhandledRejection`, `uncaughtException`)
+  - `dependencies` (`registerRedisHealthListeners`, which marks the system `DOWN` on Redis errors, and `connectDependencies`, which connects DB and Redis in the background and runs one health cycle afterwards)
+  - `shutdown` (`registerShutdown(server, stoppers)`: SIGTERM and SIGINT, stops the background jobs, closes the server, disconnects DB and Redis, forces exit after a timeout)
+  - `exit` (`exitAfterFlush`)
+- `src/app.ts`: builds the Express app and mounts the app middleware in order, then `router`, `notFound` and `errorHandler`.
+- `src/router.ts`: mounted at the root. It serves `GET /` (the API status response) and mounts the versioned API at `/api/v1`.
 - `src/api/v1/<resource>/`: `.router`, `.controller`, `.service`, `.instrumented`, `.validator`, `.types`, `.constants`, `.utils`, exported via `index.ts`. The controller imports the service from `.instrumented`, which wraps it for path logging.
 - `src/repositories/<model>/`: all data access (Prisma lives here)
-- `src/lib/`: cross-cutting code
+- `src/lib/`: cross-cutting code. Nothing in `lib/` imports from `@/middleware`.
   - `auth` (`requireAuth`, `requireAdmin`), `session`, `errors` (AppError, error codes)
   - `audit` (writer plus the outage fallback)
-  - `diagnosis` (system health state, scheduler, guard)
+  - `diagnosis` (system health state, scheduler, `isDiagnosisExempt`; the guard middleware lives in `middleware/app`)
   - `logger` (pino logger, request context, `instrument`, redaction)
   - `permissions` (the fixed permission list and its helpers)
   - `authorization` (access rules, `secureRouter`, `authorize`, the grant resolver, the scope helpers that turn grants into list filters, the 404-or-403 visibility check, and the capability helpers)
   - `pagination` (page/limit query schema, `getSkipTake`, `toPaginatedData`, the `PaginatedData` types)
-- `src/middleware/`: `request-logger`, `async-handler` (logs controller enter/exit), `validate` (`validateBody`, `validateParams`, `validateQuery`), `error-handler` (the one place errors are logged and sent; maps Prisma `P2002` to 409), `not-found`
+- `src/middleware/`: Express middleware, in two groups. Both are re-exported from `middleware/index.ts`.
+  - `app/`: mounted once in `app.ts`: `request-id`, `request-logger`, `cors` (`corsMiddleware`), `diagnosis-guard`, `session-unless-exempt` (`sessionUnlessExempt`), `not-found`, `error-handler` (the one place errors are logged and sent; maps Prisma `P2002` to 409)
+  - `route/`: used per route: `async-handler` (forwards rejected promises to the error handler), `validate` (`validateBody`, `validateParams`, `validateQuery`)
 - `src/config/`: env (including the log settings), db, redis
 - `src/generated/prisma/` is auto-generated. Never edit or read it.
 - Models: `User`, `SystemSetting`, `AuditLog`, `Environment`, `Project`, `Entity`, `Role`, `RolePermission`, `UserAccess` (`prisma/schema.prisma`)
@@ -137,13 +148,14 @@ Built: admin and normal user areas, diagnosis service (`docs/diagnosis.md`), str
 
 - **Diagnosis owns system health, the scheduler owns recovery, the frontend only reflects it.** The system boots `DOWN` and any critical error marks it `DOWN` at once. Only one fully clean scheduler cycle moves it back to `UP`; a successful request never does. While `DOWN`, the guard returns 503 and `guardedJob` skips background work.
 - **Status is per instance, in memory.** A Redis-backed status would be unreadable when Redis is down.
-- **The server starts with dependencies down.** DB and Redis connect in the background, and a failed connect is logged (`db.connect.failed`, `redis.connect.failed`), not fatal.
+- **The server starts with dependencies down.** DB and Redis connect in the background (`connectDependencies`), and a failed connect is logged (`db.connect.failed`, `redis.connect.failed`), not fatal. One health cycle runs after both connects have settled.
+- **Shutdown stops background work first.** On SIGTERM or SIGINT, `registerShutdown` stops the diagnosis scheduler and the audit drain, closes the HTTP server, then disconnects DB and Redis. A 10 second timer forces the exit if any step hangs.
 
 ### Logging
 
 - **App logs are separate from the audit log.** Audit answers who changed what (DB, permanent). The logger answers what the system did, in order (JSON to stdout in production, pretty console in dev, no log file). The logger imports only `config/env`, so it keeps working when the DB and Redis are down.
 - **One log shape for every line:** `level, time, service, env, scope, event, msg, requestId, traceId, meta, data, err`. `event` is a fixed dotted name for filtering, `msg` is the readable sentence, `meta` holds `userId`, `sessionVersion` and `userType`, and `data` holds the event values (primitives and arrays of primitives only). Absent fields are omitted, never `null`.
-- **Log everything, structured, always on.** Request start/finish/aborted and service start/end are `info`, controller enter/exit are `debug`, SQL text is `trace`. Slow queries are `warn` and `error` at `LOG_SLOW_QUERY_WARN_MS` and `LOG_SLOW_QUERY_ERROR_MS`. Each request ends with a summary in `request.finish` (`queryCount`, `dbTimeMs`, `services`).
+- **Log everything, structured, always on.** Request start/finish/aborted and service start/end are `info`, SQL text is `trace`. Slow queries are `warn` and `error` at `LOG_SLOW_QUERY_WARN_MS` and `LOG_SLOW_QUERY_ERROR_MS`. Each request ends with a summary in `request.finish` (`queryCount`, `dbTimeMs`, `services`). Controllers are not logged: the request summary and the service lines cover them.
 - **Log events, never values.** Never log passwords, hashes, cookies, session ids, tokens, the setup key, request or response bodies, SQL params or emails. Redaction is central (`lib/logger/redact.ts`), and errors are reduced to type, message, code and stack frames (Prisma messages are replaced by their code).
 - **Each failure is logged once, at the boundary.** The error handler logs `request.error`. Services and controllers throw and do not log errors. Services log only decision snapshots (ids, booleans, counts) at branches that change the outcome, and `error` for invariant violations. Auth and authorization denials log their reason (`auth.denied`, `authorization.denied`, `authorization.hidden`), with `meta.userId` where the user is known.
 - **`requestId` ties everything together.** It is the same id in log lines, `audit_logs.request_id`, the `x-request-id` header and the `requestId` field of every error body. A client-supplied id is accepted only if it matches `^[A-Za-z0-9_-]{8,36}$`, and `x-trace-id` only if it matches `^[A-Za-z0-9_-]{8,64}$`. Health cycles and `guardedJob` runs get their own `traceId` and no `requestId`.
@@ -175,9 +187,13 @@ Built: admin and normal user areas, diagnosis service (`docs/diagnosis.md`), str
 - Server validation errors come back as one joined string (`"field: message; ..."`), not per field, so the frontend can't map them to fields. Keep the client schemas in sync with the backend ones. The log line `request.validation.failed` does carry the rejected field names.
 - `projectRepository.findPage` and `entityRepository.findPageByProject` replaced `findAll` and `findByProject`. Check for other callers before reintroducing a full-list read.
 - A restored environment keeps its old `sortOrder` and can land mid-list or tie with another. The next reorder normalizes the values.
-- Mount order in `app.ts`: `requestId`, `requestLogger`, `cors`, `diagnosisGuard`, `json`, session. A new public or infra route that must work while `DOWN` goes in `GUARD_EXEMPT_PATHS`, which also skips the session middleware.
+- Mount order in `app.ts`: `requestId`, `requestLogger`, `corsMiddleware`, `diagnosisGuard`, `express.json()`, `sessionUnlessExempt`, then `router`, `notFound`, `errorHandler`. A new public or infra route that must work while `DOWN` goes in `GUARD_EXEMPT_PATHS`, which also skips the session middleware (`sessionUnlessExempt`).
+- `router` is mounted at the root and carries the `/api/v1` prefix itself, so `GET /` and the API both pass through the same middleware chain.
+- `isDiagnosisExempt` lives in `lib/diagnosis` (`diagnosis.exempt.ts`) because both `diagnosisGuard` and `sessionUnlessExempt` use it.
+- Nothing in `lib/` may import from `@/middleware`. Middleware imports from `lib/`, never the other way round, or a circular import appears.
 - `diagnosis.recordCycleResult` is for the scheduler only. Never call it from request code.
-- Wrap every new background job or scheduled action in `guardedJob`. It also gives the run its own `traceId` for logs.
+- Wrap every new background job or scheduled action in `guardedJob`. It also gives the run its own `traceId` for logs. A job that returns a stop function must also be added to the array passed to `registerShutdown` in `server.ts`, or it keeps running during shutdown.
+- A new one-time registration that must happen before the server listens (health check, listener, handler) goes in `registerProcess` (`process/bootstrap.ts`), not in `server.ts`.
 - Replayed audit rows keep their original `created_at`, so `id` order is not time order. Sort audit views by `created_at`.
 - Inside `lib/diagnosis` and `lib/audit`, import from `@/lib/errors` and `@/lib/logger`, not the `@/lib` barrel, to avoid a circular import.
 - MySQL 8.4 auth cache: after a container restart the pool only reconnects with `allowPublicKeyRetrieval=true` (dev) or TLS (prod). See `docs/troubleshooting.md`.
@@ -191,7 +207,7 @@ Built: admin and normal user areas, diagnosis service (`docs/diagnosis.md`), str
 - A new log scope must be added to `LOG_SCOPES` in `config/env/constant.ts`. Setting `LOG_SCOPES` in `.env` limits every scope that is not listed to `warn` and above.
 - `data` accepts primitives and arrays of primitives only. Never pass user strings, bodies or objects.
 - `instrument` wraps the exported functions of a service module and logs only top-level number and boolean arguments. Helpers inside a service file are not wrapped, so give them a decision snapshot line if they matter.
-- `asyncHandler` takes async handlers only, so a synchronous handler stays outside it and has no controller lines. `getMe` is async (it loads capabilities) and goes through it.
+- `asyncHandler` takes async handlers only, so a synchronous handler stays outside it. It only records the route and forwards a rejected promise to the error handler. `getMe` is async (it loads capabilities) and goes through it.
 - Middleware that runs before the error handler (`asyncHandler`, `validate*`, `requireAuth`, `authorize`, `requireSetupKey`) calls `recordRoute`. Express resets `baseUrl` before the error handler runs, so without it error lines show a partial route. `authorize` calls it itself, because the `requireAuth` that `secureRouter` mounts runs at `router.use` level, where `req.route` is not set yet.
 - While `DOWN`, the guard marks its 503s and `request.finish` logs them at `warn`, so an outage doesn't create an error line per request.
 - A lost audit event (DB, Redis and spool all failed) logs only `action` and `auditEventId`, never the payload, because audit metadata can hold an attempted email.
@@ -239,7 +255,8 @@ Built: admin and normal user areas, diagnosis service (`docs/diagnosis.md`), str
 ## Current state
 
 - Done: auth (setup, login, logout, `requireAuth`/`requireAdmin`, forced password change), audit logging, health check (DB + Redis), diagnosis service (backend core, wiring, audit fallback, frontend gate, manual test matrix), backend logging (see `docs/logging.md`), shared UI kit, app shell, account menu, profile modal (untested)
-- Logging: logger core, request context, controller and service path logging, DB and Redis logging, boundary logging for errors, validation and auth, diagnosis, audit fallback and process logging, and the `no-console` lint rule. Error responses carry `requestId`, but the frontend does not show it yet, and there is no frontend error reporting.
+- Backend refactor (in progress, reducing over-engineering): server entry split into `src/process/`, `app.ts` reduced to a list of mounts (cors and session gate extracted, root route moved into `router.ts`), middleware grouped into `app/` and `route/`, request id and diagnosis guard moved out of `lib/`, `asyncHandler` simplified and its controller logs removed, diagnosis scheduler now stopped on shutdown. Still to review: `request-logger`, `lib/authorization` exports, the `.instrumented` wrappers, the audit fallback chain.
+- Logging: logger core, request context, service path logging, DB and Redis logging, boundary logging for errors, validation and auth, diagnosis, audit fallback and process logging, and the `no-console` lint rule. Error responses carry `requestId`, but the frontend does not show it yet, and there is no frontend error reporting.
 - Catalog (backend): environments, projects and entities have admin CRUD with soft delete, restore and audit logging. Environments also support reorder. Projects have `GET /projects/:id`. The project and entity lists are paginated (`page`, `limit`, `includeDeleted`). The seed creates `dev`, `staging` and `production`. Reads are filtered by the user's scope (R6), and writes are admin-only.
 - Catalog (frontend): admin screens for environments, projects and entities (see Admin routes), built on the shared `resource-list` kit. The project and entity screens read the paginated responses and show a `Pager`, and the project page uses `GET /projects/:id`. The toolbar only has "Show deleted" so far; search and filters are not built for these screens.
 - Roles (backend): permission list, `roles` and `role_permissions` tables, the seeded Viewer, Editor, Approver and Auditor roles (R1), and the admin-only `GET /access/roles` list. Role CRUD is not built yet.
@@ -251,7 +268,7 @@ Built: admin and normal user areas, diagnosis service (`docs/diagnosis.md`), str
 - Flagger area shell (W8): closed as won't do. The API already scopes everything per user. The flags UI will reuse `GET /access/available` for its project and environment pickers, keep the selection in the URL, and show an empty state when the user has no access.
 - Shared frontend: `Pager`, `useDebouncedValue`, `Field.Select`, `Field.MultiSelect`, `Field.Toggle`, `Notice`, the state screens, the `xl` Modal size and the pagination types are built.
 - Admin area: Audit and the dashboard are placeholders.
-- Needs verification: Button and Sidebar overflow fixes, Profile modal (long names, mobile widths, change-password-from-profile flow), catalog and users screens at mobile widths, `Field.Select`, `Field.MultiSelect` and `Field.Toggle` in both themes (including inside modals), the user form at mobile widths (cards, sticky footer, step indicator), that the sidebar highlights Projects on `/admin/projects/[id]`, the state screens in both themes and at mobile widths, and that the backend sends `SESSION_EXPIRED` (not only `UNAUTHENTICATED`) for an expired session
+- Needs verification: Button and Sidebar overflow fixes, Profile modal (long names, mobile widths, change-password-from-profile flow), catalog and users screens at mobile widths, `Field.Select`, `Field.MultiSelect` and `Field.Toggle` in both themes (including inside modals), the user form at mobile widths (cards, sticky footer, step indicator), that the sidebar highlights Projects on `/admin/projects/[id]`, the state screens in both themes and at mobile widths, that the backend sends `SESSION_EXPIRED` (not only `UNAUTHENTICATED`) for an expired session, and that `pnpm --filter flagger-backend verify` passes after the `isDiagnosisExempt` export move
 
 ## Next
 

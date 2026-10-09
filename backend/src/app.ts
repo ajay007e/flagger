@@ -7,7 +7,6 @@ import {
   errorHandler,
   notFound,
   requestId,
-  requestLogger,
   sessionUnlessExempt,
 } from "@/middleware";
 import { router } from "@/router";
@@ -19,7 +18,7 @@ if (env.trustProxyHops > 0) {
 }
 
 app.use(requestId);
-app.use(requestLogger);
+//app.use(requestLogger);
 app.use(corsMiddleware);
 app.use(diagnosisGuard);
 app.use(express.json());

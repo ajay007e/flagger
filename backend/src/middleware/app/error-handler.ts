@@ -17,7 +17,7 @@ import { cap, describeFailure, getLogger, resolveRoute } from "@/lib/logger";
 import {
   CLIENT_ERROR_MESSAGES,
   DEFAULT_CLIENT_ERROR_MESSAGE,
-} from "./constants";
+} from "../constants";
 
 const log = getLogger("http");
 
