@@ -2,7 +2,7 @@ import "dotenv/config";
 
 import { z } from "zod";
 
-import { LOG_SCOPES } from "../constants";
+import { LOG_SCOPES } from "./log-scopes";
 
 const PLACEHOLDER_PREFIX = "change-me";
 

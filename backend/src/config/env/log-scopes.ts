@@ -1,0 +1,18 @@
+export const LOG_SCOPES = [
+  "http",
+  "access",
+  "auth",
+  "authorization",
+  "session",
+  "db",
+  "redis",
+  "diagnosis",
+  "audit",
+  "process",
+  "health",
+  "environments",
+  "projects",
+  "entities",
+  "users",
+  "user-access",
+] as const;

@@ -3,7 +3,7 @@ import {
   DEFAULT_ENVIRONMENTS,
   DEFAULT_ROLES,
   DEFAULT_SYSTEM_SETTINGS,
-} from "../constants";
+} from "./seed.constants";
 import { assertPermissions } from "../../lib/permissions";
 
 async function main(): Promise<void> {
