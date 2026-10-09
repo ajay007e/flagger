@@ -25,16 +25,7 @@ prisma.$on("warn", logWarning);
 prisma.$on("error", logError);
 
 export async function connectDatabase(): Promise<void> {
-  try {
-    await prisma.$queryRaw`SELECT 1`;
-  } catch (error) {
-    const reason = error instanceof Error ? error.message : String(error);
-
-    throw new Error(
-      `Could not connect to MySQL: ${reason}\n` +
-        "Check DATABASE_URL in backend/.env and make sure the database is running (pnpm services:up).",
-    );
-  }
+  await prisma.$queryRaw`SELECT 1`;
 }
 
 export async function disconnectDatabase(): Promise<void> {
