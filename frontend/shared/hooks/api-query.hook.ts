@@ -3,26 +3,22 @@
 import type { AxiosResponse } from "axios";
 import { useCallback, useEffect, useState } from "react";
 
-import { getErrorMessage } from "@/shared/lib";
+import { getErrorCode, getErrorMessage } from "@/shared/lib";
 
-import type { ApiResponse } from "../types";
+import type { ApiResponse, ErrorCode } from "../types";
 
-/**
- * Runs a service call on mount and exposes { data, loading, error, refetch }.
- *
- * `request` must be a stable reference (a service method or a function
- * defined outside the component), otherwise it will refetch on every render.
- */
 export function useApiQuery<T>(
   request: () => Promise<AxiosResponse<ApiResponse<T>>>,
 ) {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<ErrorCode | undefined>();
 
   const execute = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setErrorCode(undefined);
 
     try {
       const { data: body } = await request();
@@ -36,6 +32,7 @@ export function useApiQuery<T>(
     } catch (err) {
       setData(null);
       setError(getErrorMessage(err));
+      setErrorCode(getErrorCode(err));
     } finally {
       setLoading(false);
     }
@@ -45,5 +42,5 @@ export function useApiQuery<T>(
     void execute();
   }, [execute]);
 
-  return { data, loading, error, refetch: execute };
+  return { data, loading, error, errorCode, refetch: execute };
 }

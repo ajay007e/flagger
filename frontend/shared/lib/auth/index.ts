@@ -4,4 +4,9 @@ export {
   setUnauthenticated,
   useAuth,
 } from "./auth-store";
-export type { AuthState, AuthStatus, SessionUser } from "./auth.types";
+export type {
+  AuthReason,
+  AuthState,
+  AuthStatus,
+  SessionUser,
+} from "./auth.types";

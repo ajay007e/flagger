@@ -4,18 +4,23 @@ import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-import { Badge, ComponentLoader, FormError } from "@/shared/components";
+import {
+  Badge,
+  ComponentLoader,
+  FormError,
+  NotFoundState,
+} from "@/shared/components";
+import { ERROR_CODES } from "@/shared/constants";
 
 import { useProject } from "../projects.hook";
 
 interface ProjectDetailProps {
   projectId: number;
-  /** Rendered only while the project is active (the entities API 404s otherwise). */
   children: ReactNode;
 }
 
 export function ProjectDetail({ projectId, children }: ProjectDetailProps) {
-  const { project, loading, error } = useProject(projectId);
+  const { project, loading, error, errorCode } = useProject(projectId);
 
   return (
     <div className="flex flex-col gap-6">
@@ -29,11 +34,11 @@ export function ProjectDetail({ projectId, children }: ProjectDetailProps) {
 
       {loading ? (
         <ComponentLoader label="Loading…" />
+      ) : errorCode === ERROR_CODES.NOT_FOUND || (!error && !project) ? (
+        <NotFoundState />
       ) : error ? (
         <FormError>{error}</FormError>
-      ) : !project ? (
-        <FormError>Project not found.</FormError>
-      ) : (
+      ) : project ? (
         <>
           <header className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
@@ -61,7 +66,7 @@ export function ProjectDetail({ projectId, children }: ProjectDetailProps) {
             children
           )}
         </>
-      )}
+      ) : null}
     </div>
   );
 }
