@@ -2,12 +2,13 @@ import type { Request } from "express";
 
 import type { Permission } from "@/lib/permissions";
 
+export const ANY = Symbol("ANY");
+
 export interface AccessTarget {
   projectId?: number | null;
   entityId?: number | null;
-  environmentId?: number | null;
+  environmentId?: number | null | typeof ANY;
 }
-
 export interface AccessGrant {
   projectId: number | null;
   entityId: number | null;

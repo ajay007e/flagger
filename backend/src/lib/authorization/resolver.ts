@@ -4,10 +4,22 @@ import {
   type Permission,
 } from "@/lib/permissions";
 
-import type { AccessGrant, AccessRule, AccessTarget } from "./types";
+import {
+  ANY,
+  type AccessGrant,
+  type AccessRule,
+  type AccessTarget,
+} from "./types";
 
 function covers(scope: number | null, target: number | null | undefined) {
   return scope === null || scope === target;
+}
+
+function coversEnvironment(
+  scope: number | null,
+  target: AccessTarget["environmentId"],
+) {
+  return target === ANY || covers(scope, target);
 }
 
 export function grantHas(grant: AccessGrant, permission: Permission): boolean {
@@ -33,7 +45,7 @@ export function isAllowed(
       grantHas(grant, permission) &&
       covers(grant.projectId, target.projectId) &&
       covers(grant.entityId, target.entityId) &&
-      covers(grant.environmentId, target.environmentId),
+      coversEnvironment(grant.environmentId, target.environmentId),
   );
 }
 
