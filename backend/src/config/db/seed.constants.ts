@@ -1,12 +1,5 @@
-export const NODE_ENVIRONMENTS = ["development", "test", "production"] as const;
-
-export const DEFAULT_PORT = 4000;
-
-export const SECRET_MIN_LENGTH = 32;
-
-export const PLACEHOLDER_PREFIX = "change-me";
-
 export const DEFAULT_SYSTEM_SETTINGS = [{ key: "name", value: "Flagger" }];
+
 export const DEFAULT_ENVIRONMENTS = [
   { key: "dev", name: "Development", sortOrder: 0 },
   { key: "staging", name: "Staging", sortOrder: 1 },
@@ -39,35 +32,3 @@ export const DEFAULT_ROLES = [
     permissions: ["audit:read"],
   },
 ] as const;
-
-export const LOG_LEVELS = [
-  "trace",
-  "debug",
-  "info",
-  "warn",
-  "error",
-  "fatal",
-  "silent",
-] as const;
-
-export const LOG_SCOPES = [
-  "http",
-  "access",
-  "auth",
-  "authorization",
-  "session",
-  "db",
-  "redis",
-  "diagnosis",
-  "audit",
-  "process",
-  "health",
-  "environments",
-  "projects",
-  "entities",
-  "users",
-  "user-access",
-] as const;
-
-export const DEFAULT_SLOW_QUERY_WARN_MS = 500;
-export const DEFAULT_SLOW_QUERY_ERROR_MS = 2000;

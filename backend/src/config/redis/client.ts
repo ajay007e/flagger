@@ -1,6 +1,6 @@
 import { createClient } from "redis";
 
-import { env } from "@/config";
+import { env } from "@/config/env";
 import { getLogger } from "@/lib/logger";
 
 const log = getLogger("redis");
@@ -10,38 +10,24 @@ export const redis = createClient({
   disableOfflineQueue: true,
 });
 
-redis.on("connect", () => {
-  log.debug("redis.connect", "Redis socket connected");
-});
+const LIFECYCLE_EVENTS = [
+  ["connect", "debug", "Redis socket connected"],
+  ["ready", "debug", "Redis client is ready to accept commands"],
+  ["reconnecting", "warn", "Redis client is trying to reconnect"],
+  ["end", "warn", "Redis connection closed"],
+] as const;
 
-redis.on("ready", () => {
-  log.debug("redis.ready", "Redis client is ready to accept commands");
-});
-
-redis.on("reconnecting", () => {
-  log.warn("redis.reconnecting", "Redis client is trying to reconnect");
-});
-
-redis.on("end", () => {
-  log.warn("redis.end", "Redis connection closed");
-});
+for (const [event, level, message] of LIFECYCLE_EVENTS) {
+  redis.on(event, () => log[level](`redis.${event}`, message));
+}
 
 redis.on("error", (error) => {
   log.error("redis.error", "Redis client reported an error", { err: error });
 });
 
 export async function connectRedis(): Promise<void> {
-  try {
-    await redis.connect();
-    await redis.ping();
-  } catch (error) {
-    const reason = error instanceof Error ? error.message : String(error);
-
-    throw new Error(
-      `Could not connect to Redis: ${reason}\n` +
-        "Check REDIS_URL in backend/.env and make sure Redis is running (pnpm services:up).",
-    );
-  }
+  await redis.connect();
+  await redis.ping();
 }
 
 export async function disconnectRedis(): Promise<void> {

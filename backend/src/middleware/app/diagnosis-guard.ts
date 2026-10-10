@@ -1,17 +1,15 @@
 import type { RequestHandler } from "express";
 
-import { AppError, ERROR_CODES } from "@/lib/errors";
+import {
+  AppError,
+  diagnosis,
+  ERROR_CODES,
+  isDiagnosisExempt,
+  RETRY_AFTER_SECONDS,
+} from "@/lib";
 import { getLogger } from "@/lib/logger";
 
-import { GUARD_EXEMPT_PATHS, RETRY_AFTER_SECONDS } from "./diagnosis.constants";
-import { diagnosis } from "./diagnosis.service";
-
 const log = getLogger("diagnosis");
-
-export function isDiagnosisExempt(path: string): boolean {
-  const p = path.replace(/\/+$/, "");
-  return GUARD_EXEMPT_PATHS.some((e) => p === e || p.startsWith(`${e}/`));
-}
 
 export const diagnosisGuard: RequestHandler = (req, res, next) => {
   if (diagnosis.isUp() || isDiagnosisExempt(req.path)) return next();

@@ -1,6 +1,5 @@
-import { LOG_SCOPES } from "@/config/constants";
+import { LOG_SCOPES } from "@/config/env";
 
-export { LOG_SCOPES };
 export type LogScope = (typeof LOG_SCOPES)[number];
 
 type Primitive = string | number | boolean;
