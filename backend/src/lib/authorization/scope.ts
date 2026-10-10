@@ -1,7 +1,7 @@
 import type { Permission } from "@/lib/permissions";
 
 import { grantHas } from "./resolver";
-import type { AccessGrant, AccessTarget } from "./types";
+import { ANY, type AccessGrant, type AccessTarget } from "./types";
 
 export type IdScope = "all" | number[];
 
@@ -98,9 +98,8 @@ export function isVisible(
     if (entities !== "all" && !entities.includes(entityId)) return false;
   }
 
-  if (environmentId != null) {
+  if (environmentId != null && environmentId !== ANY) {
     const environments = scopeIds(grants, "flag:read", "environmentId");
-
     if (environments !== "all" && !environments.includes(environmentId)) {
       return false;
     }
