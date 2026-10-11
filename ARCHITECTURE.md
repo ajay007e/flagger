@@ -206,6 +206,7 @@ Built: admin and normal user areas, diagnosis service (`docs/diagnosis.md`), str
 - The seed only adds missing role permissions (`skipDuplicates`) and never overwrites existing roles. Removing a permission from `DEFAULT_ROLES` does not remove it from an existing database.
 - `config/db/seed.ts` imports `lib/permissions` by relative path, like its `./seed.constants` import.
 - Env defaults (port 4000, slow query 500 and 2000 ms) are written inline in the schema in `config/env/env.ts`, next to the setting they belong to. `LOG_SYNC` uses `z.stringbool()`, so `1`, `0`, `yes` and `no` are also accepted.
+- `flag_environments.default_variant_id` and `off_variant_id`, and `flag_rules.serve_variant_id`, only reference `flag_variants.id`. No constraint stops them pointing at a variant of another flag, so the flag services must check that every referenced variant belongs to the same flag.
 
 ### Logging
 

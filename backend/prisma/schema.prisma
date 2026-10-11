@@ -56,6 +56,7 @@ model User {
   updatedRoles          Role[]          @relation("RoleUpdatedBy")
   accessAssignments UserAccess[] @relation("UserAccessUser")
   updatedUserAccess UserAccess[] @relation("UserAccessUpdatedBy")
+  updatedFlags          Flag[]          @relation("FlagUpdatedBy")
 
   @@map("users")
 }
@@ -123,6 +124,7 @@ model Environment {
   updatedByUser User? @relation("EnvironmentUpdatedBy", fields: [updatedBy], references: [id], onDelete: Restrict)
 
   userAccess UserAccess[]
+  flagEnvironments FlagEnvironment[]
 
   @@index([sortOrder])
   @@map("environments")
@@ -167,6 +169,7 @@ model Entity {
   updatedByUser User?   @relation("EntityUpdatedBy", fields: [updatedBy], references: [id], onDelete: Restrict)
 
   userAccess UserAccess[]
+  flags      Flag[]
 
   @@unique([projectId, key])
   @@map("entities")
@@ -227,4 +230,100 @@ model UserAccess {
   @@index([assignmentId])
   @@index([userId, deletedAt])
   @@map("user_access")
+}
+
+enum FlagType {
+  boolean
+  string
+  number
+  json
+}
+
+model Flag {
+  id Int @id @default(autoincrement()) @db.UnsignedInt
+
+  entityId Int @map("entity_id") @db.UnsignedInt
+
+  key         String   @db.VarChar(50)
+  name        String   @db.VarChar(100)
+  description String?  @db.VarChar(500)
+  type        FlagType
+
+  updatedBy Int?      @map("updated_by") @db.UnsignedInt
+  createdAt DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt DateTime  @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  deletedAt DateTime? @map("deleted_at") @db.DateTime(3)
+
+  entity        Entity @relation(fields: [entityId], references: [id], onDelete: Restrict)
+  updatedByUser User?  @relation("FlagUpdatedBy", fields: [updatedBy], references: [id], onDelete: Restrict)
+
+  variants     FlagVariant[]
+  environments FlagEnvironment[]
+
+  @@unique([entityId, key])
+  @@map("flags")
+}
+
+model FlagVariant {
+  id Int @id @default(autoincrement()) @db.UnsignedInt
+
+  flagId Int @map("flag_id") @db.UnsignedInt
+
+  key   String @db.VarChar(50)
+  value Json
+
+  flag Flag @relation(fields: [flagId], references: [id], onDelete: Cascade)
+
+  defaultForEnvironments FlagEnvironment[] @relation("FlagEnvironmentDefaultVariant")
+  offForEnvironments     FlagEnvironment[] @relation("FlagEnvironmentOffVariant")
+  rules                  FlagRule[]
+
+  @@unique([flagId, key])
+  @@map("flag_variants")
+}
+
+model FlagEnvironment {
+  id Int @id @default(autoincrement()) @db.UnsignedInt
+
+  flagId        Int @map("flag_id") @db.UnsignedInt
+  environmentId Int @map("environment_id") @db.UnsignedInt
+
+  enabled Boolean @default(false)
+
+  defaultVariantId Int @map("default_variant_id") @db.UnsignedInt
+  offVariantId     Int @map("off_variant_id") @db.UnsignedInt
+
+  version Int @default(1)
+
+  flag           Flag        @relation(fields: [flagId], references: [id], onDelete: Restrict)
+  environment    Environment @relation(fields: [environmentId], references: [id], onDelete: Restrict)
+  defaultVariant FlagVariant @relation("FlagEnvironmentDefaultVariant", fields: [defaultVariantId], references: [id], onDelete: Restrict)
+  offVariant     FlagVariant @relation("FlagEnvironmentOffVariant", fields: [offVariantId], references: [id], onDelete: Restrict)
+
+  rules FlagRule[]
+
+  @@unique([flagId, environmentId])
+  @@map("flag_environments")
+}
+
+model FlagRule {
+  id Int @id @default(autoincrement()) @db.UnsignedInt
+
+  flagEnvironmentId Int @map("flag_environment_id") @db.UnsignedInt
+
+  position Int
+  name     String @db.VarChar(100)
+
+  conditions Json
+
+  serveVariantId Int? @map("serve_variant_id") @db.UnsignedInt
+
+  rollout  Json?
+  bucketBy String @default("userId") @map("bucket_by") @db.VarChar(100)
+
+  flagEnvironment FlagEnvironment @relation(fields: [flagEnvironmentId], references: [id], onDelete: Cascade)
+  serveVariant    FlagVariant?    @relation(fields: [serveVariantId], references: [id], onDelete: Restrict)
+
+  @@index([flagEnvironmentId, position])
+  @@map("flag_rules")
 }
